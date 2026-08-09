@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/d4rkNinja/ledgerly-app/actions/workflows/secret-scan.yml"><img src="https://github.com/d4rkNinja/ledgerly-app/actions/workflows/secret-scan.yml/badge.svg" alt="Secret scan status" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white" alt="Go 1.22" />
+  <img src="https://img.shields.io/badge/Go-1.26.5-00ADD8?logo=go&logoColor=white" alt="Go 1.26.5" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" alt="React 19" />
   <img src="https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white" alt="Capacitor 8" />
   <img src="https://img.shields.io/badge/MongoDB-7-47A248?logo=mongodb&logoColor=white" alt="MongoDB 7" />
@@ -121,7 +121,7 @@ set.
 
 | Layer | Technology |
 | --- | --- |
-| Backend | Go 1.22, Chi 5.2, MongoDB Go Driver 1.17 |
+| Backend | Go 1.26.5, Chi 5.2, MongoDB Go Driver 1.17 |
 | Database | MongoDB 7 with replica-set transactions |
 | Web | React 19, React Router 8, TypeScript 5.9, Vite 8 |
 | UI and state | Tailwind CSS 4, TanStack Query 5, React Hook Form, Zod 4, Motion |
@@ -155,7 +155,7 @@ backend and frontend commands from their service directories.
 | Requirement | Version or purpose |
 | --- | --- |
 | Git | Clone and contribute |
-| Go | 1.22 or newer |
+| Go | 1.26.5 or newer |
 | Node.js | `^22.22.0 || >=24.0.0` |
 | npm | 10 or newer; the repository records npm 11.8 |
 | MongoDB | A deployment with replica-set transaction support |
