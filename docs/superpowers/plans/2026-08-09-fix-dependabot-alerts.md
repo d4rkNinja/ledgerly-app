@@ -126,7 +126,7 @@ Run API tests, vet, and build; web check and script tests; and the Android test 
 
 Query the open Dependabot alerts through GitHub's API and assert the branch's selected versions are greater than or equal to every `first_patched_version` for the affected package.
 
-- [ ] **Step 3: Update and push Dependabot PR #2**
+- [x] **Step 3: Update and push Dependabot PR #2**
 
 Merge the existing Dependabot head into this branch so its remote commit remains an ancestor, push the consolidated commits to `dependabot/go_modules/api/golang.org/x/crypto-0.52.0`, and update the PR title and description to enumerate all remediated modules and verification evidence.
 
