@@ -40,7 +40,7 @@ body:
     attributes:
       label: Environment
       description: Include the OS, browser or device, Ledgerly revision, and relevant runtime versions.
-      placeholder: Windows 11, Chrome 140, commit abc1234, Go 1.22, Node.js 24
+      placeholder: Windows 11, Chrome 140, commit abc1234, Go 1.26.5, Node.js 24
     validations:
       required: true
 

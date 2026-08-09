@@ -1,6 +1,6 @@
 # MoneyTracking Go API
 
-Production-oriented Go 1.22 and MongoDB API for personal, family, and office finance. The backend owns identity, tenant resolution, permissions, private-vault visibility, monetary precision, idempotency, and audit history; clients cannot override those controls.
+Production-oriented Go 1.26.5 and MongoDB API for personal, family, and office finance. The backend owns identity, tenant resolution, permissions, private-vault visibility, monetary precision, idempotency, and audit history; clients cannot override those controls.
 
 ## Run locally with the React client
 

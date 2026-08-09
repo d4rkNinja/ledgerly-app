@@ -37,7 +37,7 @@ vi.mock("@/lib/api-client", () => ({
 const indexCss = readFileSync(
   path.join(process.cwd(), "src", "index.css"),
   "utf8",
-);
+).replace(/\r\n?/g, "\n");
 
 class ResizeObserverStub implements ResizeObserver {
   observe() {}
