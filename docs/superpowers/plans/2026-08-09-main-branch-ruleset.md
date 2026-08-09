@@ -64,7 +64,7 @@ remote SHAs match, the Gitleaks workflow succeeds, and the worktree is clean.
 - Consumes: GitHub user ID `107983953`, GitHub Actions app ID `15368`, check context `Gitleaks`
 - Produces: one active `Protect main` ruleset and a pull-request-based completion record
 
-- [ ] **Step 1: Construct and validate the exact payload**
+- [x] **Step 1: Construct and validate the exact payload**
 
 Use this JSON payload and parse it locally before sending it:
 
@@ -118,14 +118,14 @@ Use this JSON payload and parse it locally before sending it:
 Assert the payload contains exactly five rule types, one default-branch target,
 one pull-request-only bypass actor, and one required status check.
 
-- [ ] **Step 2: Create the ruleset idempotently**
+- [x] **Step 2: Create the ruleset idempotently**
 
 Query `GET /repos/d4rkNinja/ledgerly-app/rulesets`. If `Protect main` is absent,
 send the payload to `POST /repos/d4rkNinja/ledgerly-app/rulesets` with API
 version `2026-03-10`. If it is present, do not create a duplicate; compare the
 existing rule instead.
 
-- [ ] **Step 3: Verify the complete REST read-back**
+- [x] **Step 3: Verify the complete REST read-back**
 
 Read the ruleset by ID and query
 `GET /repos/d4rkNinja/ledgerly-app/rules/branches/main`. Assert active
@@ -134,14 +134,14 @@ types, PR parameters, strict `Gitleaks` check, app ID `15368`, public visibility
 and default branch `main`. Disable the ruleset immediately if any material value
 differs.
 
-- [ ] **Step 4: Record completion through the protected workflow**
+- [x] **Step 4: Record completion through the protected workflow**
 
 Create branch `docs/verify-main-ruleset`, mark all plan checkboxes complete,
 commit with `docs: record main ruleset activation`, and push the branch. Open a
 pull request against `main`, wait for `Gitleaks`, then squash-merge and delete
 the branch. Do not use bypass unless GitHub incorrectly blocks a verified PR.
 
-- [ ] **Step 5: Perform final verification**
+- [x] **Step 5: Perform final verification**
 
 Confirm the pull request merged, the merge commit is linear, the final
 `Gitleaks` run succeeded, the ruleset still applies to `main`, local `main` is
