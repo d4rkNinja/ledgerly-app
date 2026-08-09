@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/d4rkNinja/ledgerly-app/actions/workflows/secret-scan.yml"><img src="https://github.com/d4rkNinja/ledgerly-app/actions/workflows/secret-scan.yml/badge.svg" alt="Secret scan status" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Go-1.22-00ADD8?logo=go&logoColor=white" alt="Go 1.22" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827" alt="React 19" />
   <img src="https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white" alt="Capacitor 8" />
@@ -23,11 +24,10 @@ permissions, reporting, and audit history behind authenticated workspace
 boundaries.
 
 > [!IMPORTANT]
-> **Repository and license status:** the GitHub repository is currently private
-> and does not contain a `LICENSE` file. The source can be inspected by people
-> with repository access, but Ledgerly is not yet distributed under an
-> open-source license. Making the repository public and adding an explicit
-> license are separate maintainer decisions.
+> **Repository access:** the GitHub repository is currently private, so cloning
+> requires authorized access. The checked-in Ledgerly source is licensed under
+> the [MIT License](LICENSE); repository visibility and licensing are separate
+> concerns.
 
 ## Why Ledgerly exists
 
@@ -64,8 +64,12 @@ and known boundaries directly.
 
 ### Finance
 
-- Income, expense, transfer, and split transactions with explicit occurrence
-  dates, categories, contacts, notes, privacy, and idempotent writes.
+- Categorized income, expense, transfer, and split entries with contacts, notes,
+  privacy controls, and idempotent writes.
+- User-selected transaction occurrence dates that feed monthly dashboards,
+  daily cash-flow views, filters, and reports.
+- Searchable reusable transaction names that can be created, renamed, and
+  deleted for faster, consistent entry.
 - Accounts and vault-backed balances, opening balances, account editing,
   sharing, and archival that retains historical ledger records.
 - Monthly dashboards, daily cash-flow detail, category summaries, report
@@ -74,7 +78,7 @@ and known boundaries directly.
   actions, and workspace sharing.
 - Financial goals with progress, linked transactions, completion, cancellation,
   reopening, and rescheduling flows.
-- Recurring bill visibility, saved transaction names, and reusable contacts.
+- Recurring bill visibility and reusable contacts.
 
 ### Collaboration
 
@@ -95,39 +99,6 @@ and known boundaries directly.
   splash screen, and an optional local app PIN.
 - Go/Chi JSON API backed by MongoDB transactions, indexes, sessions, CORS,
   request limits, and graceful shutdown.
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/welcome.png" alt="Ledgerly welcome and onboarding screen" width="220" /><br />
-      <sub><strong>Welcome and onboarding</strong></sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/dashboard.png" alt="Ledgerly workspace dashboard with annual totals" width="220" /><br />
-      <sub><strong>Workspace dashboard</strong></sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/insights.png" alt="Ledgerly daily money movement charts" width="220" /><br />
-      <sub><strong>Financial insights</strong></sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/add-income.png" alt="Ledgerly categorized income entry form" width="220" /><br />
-      <sub><strong>Categorized income</strong></sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/transaction-date.png" alt="Ledgerly transaction date picker" width="220" /><br />
-      <sub><strong>Transaction dates</strong></sub>
-    </td>
-    <td align="center" width="33%">
-      <img src="docs/assets/screenshots/saved-names-light.png" alt="Ledgerly saved transaction names in light mode" width="220" /><br />
-      <sub><strong>Saved transaction names</strong></sub>
-    </td>
-  </tr>
-</table>
 
 ## Architecture
 
@@ -565,11 +536,12 @@ remains private.
 
 ## License
 
-No license has been added. Copyright law therefore reserves reuse,
-modification, and redistribution rights by default. Do not assume MIT, Apache,
-GPL, or any other license from the presence of source code. Maintainers must add
-a `LICENSE` file and make the intended distribution terms explicit before
-describing Ledgerly as an open-source release.
+Ledgerly is licensed under the [MIT License](LICENSE).
+
+Copyright © 2026 d4rkninja. The license permits use, copying, modification,
+merging, publication, distribution, sublicensing, and sale of the software,
+subject to preserving the copyright and license notice. The software is
+provided without warranty; see `LICENSE` for the complete terms.
 
 ## DarkNinjaSolutions
 
@@ -577,6 +549,7 @@ Ledgerly's original engineering experiment used an internal engineering harness
 and reusable development skills created by
 [DarkNinjaSolutions](https://darkninjasolutions.com).
 
-Those internal harness components and proprietary reusable skills are not
-included or licensed by this repository. Ledgerly's own distribution status is
-defined only by this repository's visibility and future `LICENSE` file.
+The checked-in Ledgerly source is licensed under the
+[MIT License](LICENSE). That license does not cover the internal engineering
+harness or proprietary reusable skills unless they are separately published
+under their own license.

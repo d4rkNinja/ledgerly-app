@@ -48,8 +48,9 @@ The three requested Finance capabilities will be described as:
 
 ## Validation
 
-- Confirm no README or tracked file references `docs/assets/screenshots` or
-  any deleted filename.
+- Confirm `README.md` contains no `docs/assets/screenshots` reference or
+  deleted screenshot filename; the design and implementation records may name
+  the removed assets for auditability.
 - Confirm all six PNG files are deleted and no replacement images are added.
 - Confirm every remaining local README link resolves, including `LICENSE`.
 - Render the README with GitHub's Markdown API and confirm the document contains
