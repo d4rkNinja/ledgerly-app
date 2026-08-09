@@ -23,12 +23,6 @@ office-style workspaces; records financial activity; and keeps collaboration,
 permissions, reporting, and audit history behind authenticated workspace
 boundaries.
 
-> [!IMPORTANT]
-> **Repository access:** the GitHub repository is currently private, so cloning
-> requires authorized access. The checked-in Ledgerly source is licensed under
-> the [MIT License](LICENSE); repository visibility and licensing are separate
-> concerns.
-
 ## Why Ledgerly exists
 
 Ledgerly is both a finance application and a specification-driven engineering
@@ -186,9 +180,6 @@ SSH:
 git clone git@github.com:d4rkNinja/ledgerly-app.git
 cd ledgerly-app
 ```
-
-Because the repository is currently private, cloning requires authorized GitHub
-access.
 
 ### Environment configuration
 
@@ -517,22 +508,30 @@ Never commit:
 - cloud/service-account credentials; or
 - production database URLs.
 
-There is no `SECURITY.md` or documented vulnerability-reporting channel yet.
-Do not publish a suspected vulnerability or secret in a public issue; contact
-the maintainers privately before disclosure.
+Read the [security policy](SECURITY.md) before reporting a vulnerability. Use
+GitHub's
+[private vulnerability reporting](https://github.com/d4rkNinja/ledgerly-app/security/advisories/new)
+for suspected vulnerabilities or exposed secrets; never publish them in an
+Issue or Discussion.
 
 ## Contributing
 
-The repository does not yet include `CONTRIBUTING.md` or a code of conduct.
-With repository access, the expected workflow is:
+Contributions and community participation are welcome. Before participating,
+read the [contribution guide](CONTRIBUTING.md) and
+[code of conduct](CODE_OF_CONDUCT.md).
 
-1. Fork or branch from `main`.
-2. Keep the change focused and add tests for observable behavior.
-3. Run the backend, web, and Android checks affected by the change.
-4. Open a pull request describing behavior, risk, and verification evidence.
+- Ask usage and troubleshooting questions in
+  [GitHub Discussions](https://github.com/d4rkNinja/ledgerly-app/discussions).
+- Report reproducible bugs or propose actionable features through the
+  [issue forms](https://github.com/d4rkNinja/ledgerly-app/issues/new/choose).
+- Report vulnerabilities privately through the
+  [security policy](SECURITY.md); never open a public issue for a suspected
+  vulnerability or exposed secret.
+- Review the [support guidance](SUPPORT.md) before choosing a channel.
 
-External forks and pull requests may not be available while the repository
-remains private.
+For code changes, fork the repository, branch from `main`, keep the change
+focused, add tests for observable behavior, run the affected checks, and open a
+pull request with verification evidence.
 
 ## License
 

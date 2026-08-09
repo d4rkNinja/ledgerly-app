@@ -1,0 +1,95 @@
+name: Bug report
+description: Report a reproducible problem in Ledgerly
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Ledgerly. Do not include credentials, personal financial data, production records, or suspected vulnerability details.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I removed secrets, credentials, and sensitive financial data from this report.
+          required: true
+        - label: This is not a security vulnerability. I will use private vulnerability reporting for security concerns.
+          required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Select the area where the problem occurs.
+      options:
+        - API
+        - Web application
+        - Android application
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include the OS, browser or device, Ledgerly revision, and relevant runtime versions.
+      placeholder: Windows 11, Chrome 140, commit abc1234, Go 1.22, Node.js 24
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Clearly describe the problem and when it occurs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest reliable sequence that reproduces the problem.
+      placeholder: |
+        1. Start Ledgerly with ...
+        2. Open ...
+        3. Select ...
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or evidence
+      description: Paste redacted logs or attach UI evidence when it helps reproduce the issue.
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add any other information that may help diagnose the problem.

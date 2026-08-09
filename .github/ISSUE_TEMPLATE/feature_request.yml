@@ -1,0 +1,75 @@
+name: Feature request
+description: Propose a scoped improvement to Ledgerly
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement. Use Discussions first when the idea still needs broad exploration.
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions and did not find the same proposal.
+          required: true
+        - label: This proposal describes one focused problem and outcome.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or contributor problem should Ledgerly solve?
+      placeholder: Describe the problem without assuming a particular implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What observable result would make this proposal successful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe current workarounds or other approaches you considered.
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - API
+        - Web application
+        - Android application
+        - Documentation
+        - Cross-application
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add examples, references, constraints, or UI evidence when useful.
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Would you be interested in helping implement an approved solution?
+      options:
+        - Yes, I would like to contribute
+        - Maybe, with maintainer guidance
+        - No, I am only proposing the idea
+    validations:
+      required: true
