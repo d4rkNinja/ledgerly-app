@@ -192,7 +192,7 @@ Expected: `origin/main` advances and its SHA equals local `HEAD`.
 - Consumes: pushed default-branch files from Task 3
 - Produces: Discussions, welcome post, metadata/topics, and security controls
 
-- [ ] **Step 1: Enable Discussions and set metadata**
+- [x] **Step 1: Enable Discussions and set metadata**
 
 Use `gh repo edit d4rkNinja/ledgerly-app` to keep Issues and Projects enabled,
 enable Discussions, set the design's exact description, and add these topics:
@@ -204,7 +204,7 @@ empty.
 gh repo edit d4rkNinja/ledgerly-app --enable-discussions --enable-issues --enable-projects --description "Shared finance platform for tracking money, planning goals, and coordinating financial activity across web and Android." --add-topic personal-finance,expense-tracker,budgeting,golang,react,typescript,android,capacitor,mongodb,monorepo
 ```
 
-- [ ] **Step 2: Enable the security baseline**
+- [x] **Step 2: Enable the security baseline**
 
 Use GitHub REST to enable private vulnerability reporting, vulnerability
 alerts, and automated security fixes. Enable secret scanning first and then
@@ -219,7 +219,7 @@ gh repo edit d4rkNinja/ledgerly-app --enable-secret-scanning
 gh repo edit d4rkNinja/ledgerly-app --enable-secret-scanning-push-protection
 ```
 
-- [ ] **Step 3: Create the welcome discussion idempotently**
+- [x] **Step 3: Create the welcome discussion idempotently**
 
 Query repository/category/discussion IDs with GraphQL. If
 `Welcome to Ledgerly Discussions` does not exist, create it in Announcements,
@@ -243,12 +243,14 @@ mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) 
 }
 ```
 
-- [ ] **Step 4: Verify GitHub read-back state**
+- [x] **Step 4: Verify GitHub read-back state**
 
 Assert: PUBLIC visibility; Issues, Projects, and Discussions enabled; MIT
 license; exact description; exact ten topics; private vulnerability reporting,
 vulnerability alerts, automated fixes, secret scanning, and push protection
 enabled; and exactly one welcome discussion. Confirm GitHub's community-profile
-API detects README, license, contributing guide, code of conduct, issue
-template, PR template, and security policy. Confirm Gitleaks succeeds for the
-pushed SHA and the local worktree is clean.
+API reaches 100% and detects README, license, contributing guide, code of
+conduct, and PR template. GitHub's legacy REST/GraphQL `issue_template` fields
+do not enumerate YAML issue forms, so verify those forms through their
+default-branch content plus the YAML/schema checks from Task 2. Confirm Gitleaks
+succeeds for the pushed SHA and the local worktree is clean.
