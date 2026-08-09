@@ -3,7 +3,7 @@ module github.com/d4rkNinja/moneytracking-ledgerly-api
 go 1.26.5
 
 require (
-	github.com/go-chi/chi/v5 v5.2.2
+	github.com/go-chi/chi/v5 v5.2.4
 	go.mongodb.org/mongo-driver v1.17.7
 	golang.org/x/crypto v0.52.0
 )
