@@ -4,16 +4,18 @@
 
 **Goal:** Resolve every open Dependabot alert in `api/go.mod` through patched direct dependencies and deliver the result through the protected pull-request workflow.
 
-**Architecture:** Keep the application code unchanged. Upgrade only the three vulnerable direct Go modules, allow Go to update their required indirect modules, raise the module's Go floor required by `golang.org/x/crypto`, and synchronize current user-facing version documentation.
+**Architecture:** Keep the application code unchanged. Upgrade only the three vulnerable direct Go modules, raise the vulnerable indirect `golang.org/x/text` module found by `govulncheck`, use the current security-patched Go toolchain, repair vulnerable npm transitive lockfile entries, and synchronize current user-facing version documentation.
 
-**Tech Stack:** Go modules, Go 1.25, GitHub Dependabot, GitHub pull requests, existing repository verification commands.
+**Tech Stack:** Go modules, Go 1.26.5, `govulncheck`, npm audit, GitHub Dependabot, GitHub pull requests, existing repository verification commands.
 
 ## Global Constraints
 
 - Upgrade `golang.org/x/crypto` from `v0.26.0` to the first fully patched version `v0.52.0`.
 - Upgrade `github.com/go-chi/chi/v5` from `v5.2.0` to the first patched version `v5.2.2`.
 - Upgrade `go.mongodb.org/mongo-driver` from `v1.17.3` to the first patched version `v1.17.7`.
-- Set the API module Go version to `1.25.0`, the minimum required by `golang.org/x/crypto v0.52.0`.
+- Upgrade `golang.org/x/text` to `v0.39.0`, the first release fixing the reachable `GO-2026-5970` finding.
+- Set the API module Go version to the current security-patched stable release `1.26.5`.
+- Resolve `brace-expansion` to `v5.0.9` and `nanoid` to `v3.3.18` in `web/package-lock.json` so `npm audit` reports zero vulnerabilities.
 - Do not change application behavior or historical planning documents.
 - Require the complete repository test and build matrix plus GitHub's `Gitleaks` check before merging.
 
@@ -30,18 +32,19 @@
 
 **Interfaces:**
 - Consumes: Existing Go module dependency graph and current version documentation.
-- Produces: A Go 1.25-compatible dependency graph containing all Dependabot patched-version floors.
+- Produces: A Go 1.26.5-compatible dependency graph containing all Dependabot patched-version floors.
 
-- [ ] **Step 1: Apply exact security floors**
+- [x] **Step 1: Apply exact security floors**
 
 Run from `api/`:
 
 ```bash
-go get github.com/go-chi/chi/v5@v5.2.2 go.mongodb.org/mongo-driver@v1.17.7 golang.org/x/crypto@v0.52.0
+go mod edit -go 1.26.5
+go get github.com/go-chi/chi/v5@v5.2.2 go.mongodb.org/mongo-driver@v1.17.7 golang.org/x/crypto@v0.52.0 golang.org/x/text@v0.39.0
 go mod tidy
 ```
 
-- [ ] **Step 2: Verify resolved versions**
+- [x] **Step 2: Verify resolved versions**
 
 Run:
 
@@ -49,13 +52,13 @@ Run:
 go list -m github.com/go-chi/chi/v5 go.mongodb.org/mongo-driver golang.org/x/crypto
 ```
 
-Expected versions are `v5.2.2`, `v1.17.7`, and `v0.52.0` respectively.
+Expected direct versions are `v5.2.2`, `v1.17.7`, and `v0.52.0` respectively; `golang.org/x/text` must resolve to at least `v0.39.0`.
 
-- [ ] **Step 3: Update current Go-version documentation**
+- [x] **Step 3: Update current Go-version documentation**
 
-Change active Go 1.22 references in the root README, API README, and bug-report environment example to Go 1.25. Do not rewrite historical implementation plans.
+Change active Go 1.22 references in the root README, API README, and bug-report environment example to Go 1.26.5. Do not rewrite historical implementation plans.
 
-- [ ] **Step 4: Verify the API**
+- [x] **Step 4: Verify the API**
 
 Run from `api/`:
 
@@ -63,16 +66,50 @@ Run from `api/`:
 go test ./...
 go vet ./...
 go build ./...
+go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 ```
 
-- [ ] **Step 5: Commit the remediation**
+- [x] **Step 5: Commit the remediation**
 
 ```bash
 git add api/go.mod api/go.sum README.md api/README.md .github/ISSUE_TEMPLATE/bug_report.yml
 git commit -m "fix(deps): resolve Dependabot security alerts"
 ```
 
-### Task 2: Validate and deliver the consolidated security PR
+### Task 2: Resolve npm audit findings and make the CSS contract portable
+
+**Files:**
+- Modify: `web/package-lock.json`
+- Modify: `web/src/pages/finance/home-transactions.test.tsx`
+
+**Interfaces:**
+- Consumes: The existing npm lockfile and CSS contract fixture.
+- Produces: A zero-vulnerability npm audit and a CSS contract test that works with LF and CRLF checkouts.
+
+- [x] **Step 1: Reproduce the npm findings**
+
+Run `npm ci` and `npm audit --json`; confirm the high-severity findings are transitive `brace-expansion` and `nanoid` advisories with non-breaking fixes available.
+
+- [x] **Step 2: Apply lockfile-only security fixes**
+
+Run `npm audit fix --package-lock-only`, reinstall with `npm ci`, and require `npm audit --json` to report zero vulnerabilities.
+
+- [x] **Step 3: Make the existing CSS contract test newline-portable**
+
+Reproduce the fresh-worktree failure, normalize `readFileSync(..., "utf8")` with `.replace(/\r\n?/g, "\n")`, and rerun `home-transactions.test.tsx` to verify all 21 tests pass.
+
+- [x] **Step 4: Verify web and Android behavior**
+
+Run `npm run check`, `npm run test:scripts`, `npm run android:sync`, and `npm run android:test`. Require 301 web tests, 73 script tests, successful typecheck/lint/build, and a successful 437-task Gradle run.
+
+- [x] **Step 5: Commit the lockfile and test portability fix**
+
+```bash
+git add web/package-lock.json web/src/pages/finance/home-transactions.test.tsx
+git commit -m "fix(deps): resolve transitive npm advisories"
+```
+
+### Task 3: Validate and deliver the consolidated security PR
 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-08-09-fix-dependabot-alerts.md`
@@ -81,11 +118,11 @@ git commit -m "fix(deps): resolve Dependabot security alerts"
 - Consumes: The updated dependency graph from Task 1 and GitHub's open-alert API.
 - Produces: A passing, approved, merged Dependabot pull request and zero open alerts after GitHub processes `main`.
 
-- [ ] **Step 1: Run the repository verification matrix**
+- [x] **Step 1: Run the repository verification matrix**
 
 Run API tests, vet, and build; web check and script tests; and the Android test task using the repository's documented commands.
 
-- [ ] **Step 2: Verify the dependency graph against every advisory floor**
+- [x] **Step 2: Verify the dependency graph against every advisory floor**
 
 Query the open Dependabot alerts through GitHub's API and assert the branch's selected versions are greater than or equal to every `first_patched_version` for the affected package.
 
