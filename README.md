@@ -1,4 +1,45 @@
-# Ledgerly development and Android QA
+<p align="center">
+  <img src="applications/android/assets/logo.svg" alt="Ledgerly logo" width="96" />
+</p>
+
+<h1 align="center">Ledgerly</h1>
+
+<p align="center">
+  Development and Android QA guide for the Ledgerly finance platform.
+</p>
+
+## Product preview
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/welcome.png" alt="Ledgerly welcome and onboarding screen" width="220" /><br />
+      <sub><strong>Private-first onboarding</strong></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/dashboard.png" alt="Ledgerly workspace dashboard with annual totals" width="220" /><br />
+      <sub><strong>Workspace dashboard</strong></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/insights.png" alt="Ledgerly daily money movement charts" width="220" /><br />
+      <sub><strong>Financial insights</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/add-income.png" alt="Ledgerly categorized income entry form" width="220" /><br />
+      <sub><strong>Categorized entries</strong></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/transaction-date.png" alt="Ledgerly transaction date picker" width="220" /><br />
+      <sub><strong>Transaction dates</strong></sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/screenshots/saved-names-light.png" alt="Ledgerly saved transaction names in light mode" width="220" /><br />
+      <sub><strong>Reusable transaction names</strong></sub>
+    </td>
+  </tr>
+</table>
 
 ## Canonical reusable test account
 
@@ -50,5 +91,3 @@ device; `10.0.2.2` is emulator-only.
 5. Open Entries, Budgets, Goals, and More; confirm each screen loads.
 6. Create a small test transaction and confirm balances/dashboard update.
 7. Relaunch the app and verify the PIN unlock flow.
-
-# ledgerly-app
