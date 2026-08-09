@@ -2,6 +2,32 @@
 .env
 .env.*
 !.env.example
+.envrc
+.direnv/
+
+# Private credentials and signing material
+.npmrc
+.pypirc
+.netrc
+credentials.json
+credentials.*.json
+service-account*.json
+google-services.json
+local.properties
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+*.tfvars
+*.tfstate
+*.tfstate.*
 
 # Dependencies and generated frontend output
 node_modules/
