@@ -1,0 +1,7 @@
+export { HomePage, TransactionsPage } from './finance/home-transactions'
+export { AccountsPage } from './finance/accounts'
+export { BudgetsPage, GoalsPage } from './finance/budgets-goals'
+export { BillsPage, InsightsPage } from './finance/bills-insights'
+export { FamilyPage, OfficePage } from './finance/collaboration'
+export { NotificationsPage } from './finance/activity'
+export { MorePage, HelpPage } from './finance/more-help'

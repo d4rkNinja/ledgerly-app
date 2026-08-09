@@ -1,0 +1,29 @@
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated frontend output
+node_modules/
+dist/
+coverage/
+
+# Build output and deployment bundles
+bin/
+build/
+.gradle/
+.deploy-api-*/
+applications/android/evidence/
+applications/android/gradle/wrapper/gradle-*-all.zip
+
+# Local QA evidence and runtime data
+.qa/
+artifacts/
+
+# IDE and OS metadata
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent-local configuration
+.agents/

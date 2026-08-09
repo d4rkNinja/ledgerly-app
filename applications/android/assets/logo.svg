@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" role="img" aria-labelledby="ledgerly-logo-title">
+  <title id="ledgerly-logo-title">Ledgerly</title>
+  <path fill="#17483A" d="M6 4h11v26c0 7.18 5.82 13 13 13h17v7H29C16.3 50 6 39.7 6 27V4Z"/>
+  <path fill="#A6B58A" d="m21 13 10-6v31c-5.52 0-10-4.48-10-10V13Z"/>
+  <path fill="#20272B" d="m34 7 12 6v14.5c-4.94 2.19-8.92 5.64-12 10.5V7Z"/>
+  <path fill="#A6B58A" d="M34 42c.35-6.93 4.5-12.08 12-14.5V33c0 4.97-4.03 9-9 9h-3Z"/>
+</svg>

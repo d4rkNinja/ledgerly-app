@@ -1,0 +1,161 @@
+.finance-write-form {
+  min-width: 0;
+}
+
+.finance-write-form textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.finance-write-info,
+.finance-write-demo-note,
+.finance-write-prerequisite {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+  color: var(--ink-subtle);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.finance-write-info > svg,
+.finance-write-demo-note > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  color: var(--accent);
+}
+
+.finance-write-demo-note {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface-soft));
+}
+
+.finance-write-demo-note p {
+  margin: 0;
+}
+
+.finance-write-prerequisite {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.finance-write-prerequisite .button {
+  flex: 0 0 auto;
+}
+
+.finance-write-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.finance-write-toggle input,
+.finance-write-toggle [role='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+}
+
+.finance-write-toggle input {
+  accent-color: var(--accent);
+}
+
+.finance-write-toggle > span {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.finance-write-toggle strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+
+.finance-write-toggle small {
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.account-derived-balance {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+}
+
+.account-derived-balance > span,
+.account-derived-balance small {
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.account-derived-balance output {
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-claim-review-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+}
+
+.finance-claim-review-summary span {
+  min-width: 0;
+  color: var(--ink-subtle);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.finance-claim-review-summary strong {
+  flex: 0 0 auto;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 680px) {
+  .finance-write-prerequisite,
+  .finance-claim-review-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .finance-write-prerequisite .button {
+    width: 100%;
+  }
+
+  .finance-claim-review-summary strong {
+    align-self: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-write-form textarea {
+    scroll-behavior: auto;
+  }
+}

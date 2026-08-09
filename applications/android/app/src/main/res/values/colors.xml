@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="app_background">#F1F5F2</color>
+    <color name="splash_background">#F1F5F2</color>
+    <color name="system_bar_background">#00000000</color>
+    <color name="navigation_bar_divider">#00000000</color>
+    <color name="brand_primary">#17483A</color>
+    <color name="brand_secondary">#A6B58A</color>
+    <color name="brand_ink">#20272B</color>
+    <color name="ic_launcher_background">#F1F5F2</color>
+</resources>

@@ -1,0 +1,39 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: moneytracking-mongo
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: moneytracking
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    command:
+      - mongosh
+      - --host
+      - mongo:27017
+      - --quiet
+      - --eval
+      - |
+        try {
+          rs.status()
+        } catch (error) {
+          rs.initiate({_id: "rs0", members: [{_id: 0, host: "localhost:27017"}]})
+        }
+
+volumes:
+  mongo-data:

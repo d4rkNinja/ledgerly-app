@@ -1,0 +1,79 @@
+apply plugin: 'com.android.application'
+
+def ledgerlyHttpDebug =
+    System.getenv('LEDGERLY_ANDROID_BUILD_MODE') == 'debug' &&
+    System.getenv('LEDGERLY_ANDROID_HTTP_DEBUG') == '1' &&
+    [
+        'http://10.0.2.2:8080/api/v1',
+        'http://80.225.194.189:3001/api/v1',
+    ].contains(System.getenv('VITE_API_BASE_URL'))
+def ledgerlyReleaseHttp =
+    System.getenv('LEDGERLY_ANDROID_BUILD_MODE') == 'release' &&
+    System.getenv('LEDGERLY_ANDROID_RELEASE_HTTP') == '1' &&
+    System.getenv('VITE_API_BASE_URL') == 'http://80.225.194.189:3001/api/v1'
+
+android {
+    namespace = "io.github.d4rkninja.ledgerly"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.github.d4rkninja.ledgerly"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        debug {
+            manifestPlaceholders = [
+                ledgerlyNetworkSecurityConfig: ledgerlyHttpDebug
+                    ? "@xml/network_security_config"
+                    : "@xml/network_security_config_secure",
+                ledgerlyUsesCleartextTraffic: ledgerlyHttpDebug ? "true" : "false",
+            ]
+        }
+        release {
+            manifestPlaceholders = [
+                ledgerlyNetworkSecurityConfig: ledgerlyReleaseHttp
+                    ? "@xml/network_security_config_release_http"
+                    : "@xml/network_security_config_secure",
+                ledgerlyUsesCleartextTraffic: ledgerlyReleaseHttp ? "true" : "false",
+            ]
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir {
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
