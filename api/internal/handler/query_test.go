@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestQueryParsersPreserveAbsentDefaults(t *testing.T) {
@@ -55,6 +56,63 @@ func TestDashboardRejectsInvalidMonthAsBadRequestFieldValidation(t *testing.T) {
 	}
 	if _, ok := response.Error.Fields["month"]; !ok {
 		t.Fatalf("fields = %#v, want month validation error", response.Error.Fields)
+	}
+}
+
+func TestTransactionFilterQueryParsesListAndExportFieldsOnce(t *testing.T) {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/workspaces/a/export.csv?transactionId=0025&type=expense&category=Food&accountId=account-a&contactId=contact-a&merchant=Cafe&search=office&minAmountMinor=1000&maxAmountMinor=2500&from=2026-07-01T00:00:00Z&to=2026-08-01T00:00:00Z",
+		nil,
+	)
+	filter, err := transactionFilterQuery(request)
+	if err != nil {
+		t.Fatalf("transactionFilterQuery() error = %v", err)
+	}
+	if filter.TransactionID != "0025" || filter.Type != "expense" || filter.Category != "Food" ||
+		filter.AccountID != "account-a" || filter.ContactID != "contact-a" || filter.Merchant != "Cafe" || filter.Search != "office" {
+		t.Fatalf("filter strings = %#v", filter)
+	}
+	if filter.MinAmountMinor == nil || *filter.MinAmountMinor != 1000 ||
+		filter.MaxAmountMinor == nil || *filter.MaxAmountMinor != 2500 {
+		t.Fatalf("amount bounds = %#v", filter)
+	}
+	if filter.From == nil || !filter.From.Equal(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC)) ||
+		filter.To == nil || !filter.To.Equal(time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("date bounds = %#v", filter)
+	}
+}
+
+func TestTransactionFilterQueryPreservesDateOnlyExportRange(t *testing.T) {
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/workspaces/a/export.csv?from=2026-08-01&to=2026-08-31",
+		nil,
+	)
+	filter, err := transactionFilterQuery(request)
+	if err != nil {
+		t.Fatalf("transactionFilterQuery() error = %v", err)
+	}
+	wantFrom := time.Date(2026, time.August, 1, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+	if filter.From == nil || !filter.From.Equal(wantFrom) || filter.To == nil || !filter.To.Equal(wantTo) {
+		t.Fatalf("date-only bounds = %#v, want [%s, %s)", filter, wantFrom, wantTo)
+	}
+}
+
+func TestTransactionFilterQueryRejectsMalformedAmountBounds(t *testing.T) {
+	tests := []struct {
+		target string
+		field  string
+	}{
+		{target: "/?minAmountMinor=12.5", field: "minAmountMinor"},
+		{target: "/?maxAmountMinor=-1", field: "maxAmountMinor"},
+		{target: "/?minAmountMinor=200&maxAmountMinor=100", field: "amount"},
+	}
+	for _, test := range tests {
+		if _, err := transactionFilterQuery(httptest.NewRequest(http.MethodGet, test.target, nil)); err == nil {
+			t.Fatalf("transactionFilterQuery(%q) should reject %s", test.target, test.field)
+		}
 	}
 }
 

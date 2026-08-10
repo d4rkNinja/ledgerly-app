@@ -14,6 +14,9 @@ var workspaceOwnedCollections = []string{
 	"vaults",
 	"accounts",
 	"transactions",
+	"transaction_sequences",
+	transactionCategoriesCollection,
+	transactionCategorySeeds,
 	"budgets",
 	"recurring_transactions",
 	"goals",
@@ -68,6 +71,8 @@ func (s *FinanceService) DeleteWorkspace(ctx context.Context, workspaceID, actor
 func workspaceDeletionFilter(collection, workspaceID string) repository.Filter {
 	switch collection {
 	case "workspaces":
+		return repository.Filter{"_id": workspaceID}
+	case transactionCategorySeeds:
 		return repository.Filter{"_id": workspaceID}
 	case "idempotency":
 		// Transaction idempotency records retain the original transaction in

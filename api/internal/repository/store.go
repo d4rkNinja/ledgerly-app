@@ -106,6 +106,9 @@ func (s *MongoStore) Aggregate(ctx context.Context, collection string, pipeline 
 func (s *MongoStore) UpdateOne(ctx context.Context, collection string, filter Filter, update Filter, destination any) error {
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 	err := s.database.Collection(collection).FindOneAndUpdate(ctx, bson.M(filter), bson.M(update), opts).Decode(destination)
+	if collection == transactionsCollection && mongo.IsDuplicateKeyError(err) {
+		return ErrTransactionIDDuplicate
+	}
 	return normalize(err)
 }
 

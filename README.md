@@ -60,6 +60,11 @@ and known boundaries directly.
 
 - Categorized income, expense, transfer, and split entries with contacts, notes,
   privacy controls, and idempotent writes.
+- Workspace-scoped numeric transaction IDs with independent expense, income,
+  transfer, and split sequences; automatic allocation, manual IDs, and
+  configurable digit widths.
+- Workspace-managed categories for every transaction mode, including default
+  seeding, rename, enable/disable, safe replacement, and explicit ordering.
 - User-selected transaction occurrence dates that feed monthly dashboards,
   daily cash-flow views, filters, and reports.
 - Searchable reusable transaction names that can be created, renamed, and
@@ -67,7 +72,8 @@ and known boundaries directly.
 - Accounts and vault-backed balances, opening balances, account editing,
   sharing, and archival that retains historical ledger records.
 - Monthly dashboards, daily cash-flow detail, category summaries, report
-  summaries, search, and workspace CSV export.
+  summaries, combined transaction filters, exact/partial transaction-ID
+  search, and filter-aware workspace CSV export.
 - Budgets with periods, categories, rollover settings, progress, record
   actions, and workspace sharing.
 - Financial goals with progress, linked transactions, completion, cancellation,
@@ -458,8 +464,8 @@ curl http://localhost:8080/ready
 - Public groups: registration and login.
 - Protected groups: profile and sessions, workspaces, invitations and join
   requests, notifications, dashboard, search, reports, audit, vaults, accounts,
-  transactions, contacts, saved names, budgets, bills, goals, members, and
-  expense claims.
+  transactions, transaction sequences, transaction categories, contacts,
+  saved names, budgets, bills, goals, members, and expense claims.
 - Lists that support pagination use validated `limit` and `skip` query
   parameters; finance lists also expose scoped filters.
 - Errors are JSON objects with stable error codes, messages, optional field
@@ -477,7 +483,9 @@ examples—for monorepo setup commands.
 
 | Document | Contents |
 | --- | --- |
+| [Changelog](CHANGELOG.md) | User-facing additions, behavior changes, and fixes by release state |
 | [Backend reference](api/README.md) | Domain model, endpoint groups, indexes, security, and scope boundaries |
+| [Transaction IDs, categories, filters, and export](docs/transaction-ids-categories-filters-export.md) | Numeric sequence, category, migration, query, CSV, and verification contracts |
 | [Finance dates, dashboards, and goals](docs/finance-date-dashboard-goals-implementation.md) | Implemented date, aggregation, goal, and verification contracts |
 | [Shared workspace design](docs/superpowers/specs/2026-08-02-shared-workspace-product-completion-design.md) | Invitations, members, dashboard, export, and workspace boundaries |
 | [Finance record actions and mobile dashboard](docs/superpowers/specs/2026-08-03-finance-record-actions-mobile-dashboard-design.md) | Record actions, monthly dashboard, responsive behavior, and tests |

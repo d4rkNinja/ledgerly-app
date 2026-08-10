@@ -8,15 +8,26 @@ export type WorkspaceExportRange = {
   to: string
 }
 
+export type WorkspaceExportQuery = WorkspaceExportRange | URLSearchParams
+
+function exportQueryString(query?: WorkspaceExportQuery) {
+  if (!query) return ''
+  const searchParams = query instanceof URLSearchParams
+    ? new URLSearchParams(query)
+    : new URLSearchParams({ from: query.from, to: query.to })
+  const value = searchParams.toString()
+  return value ? `?${value}` : ''
+}
+
 export async function downloadWorkspaceExport(
   workspaceId: string,
-  range?: WorkspaceExportRange,
+  queryParams?: WorkspaceExportQuery,
 ) {
-  const query = range
-    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
-    : ''
   const response = await api.download(
-    '/workspaces/' + encodeURIComponent(workspaceId) + '/export.csv' + query,
+    '/workspaces/' +
+      encodeURIComponent(workspaceId) +
+      '/export.csv' +
+      exportQueryString(queryParams),
   )
   const filename = response.filename || FALLBACK_FILENAME
   downloadTextFile(filename, response.content, 'text/csv;charset=utf-8')

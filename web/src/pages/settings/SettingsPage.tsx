@@ -34,6 +34,7 @@ import {
   type SettingsSectionId,
 } from './settings-model'
 import { downloadWorkspaceExport } from '@/lib/export'
+import { TransactionSettingsSection } from './TransactionSettingsSection'
 
 export function SettingsPage() {
   const {
@@ -275,6 +276,7 @@ export function SettingsPage() {
             }
             onExport={() => exportMutation.mutate()}
           />
+          <TransactionSettingsSection />
           <AccountActionsSection
             logoutPending={currentLogout.isPending}
             logoutBusy={logoutBusy}

@@ -159,6 +159,39 @@ func TestFinancialPayloadHashKeepsOmittedOccurredAtStableAcrossRetries(t *testin
 	}
 }
 
+func TestFinancialPayloadHashIncludesManualTransactionID(t *testing.T) {
+	manual := &model.Transaction{
+		WorkspaceID: "workspace", VaultID: "vault", AccountID: "account",
+		CreatedBy: "user", Type: "expense", AmountMinor: 1250, Currency: "INR",
+		SequenceScope: model.TransactionSequenceExpense, TransactionID: "0042",
+	}
+	firstHash, err := financialPayloadHash(manual, nil)
+	if err != nil {
+		t.Fatalf("financialPayloadHash(manual): %v", err)
+	}
+	changed := *manual
+	changed.TransactionID = "0043"
+	secondHash, err := financialPayloadHash(&changed, nil)
+	if err != nil {
+		t.Fatalf("financialPayloadHash(changed manual ID): %v", err)
+	}
+	if firstHash == secondHash {
+		t.Fatal("different manual transaction IDs shared an idempotency fingerprint")
+	}
+
+	automatic := *manual
+	automatic.TransactionID = ""
+	automatic.AutoGenerateTransactionID = true
+	automaticHash, err := financialPayloadHash(&automatic, nil)
+	if err != nil {
+		t.Fatalf("financialPayloadHash(automatic request): %v", err)
+	}
+	automatic.ID = "a different internal ID"
+	if retryHash, err := financialPayloadHash(&automatic, nil); err != nil || retryHash != automaticHash {
+		t.Fatalf("automatic retry hash = %q, %v; want %q", retryHash, err, automaticHash)
+	}
+}
+
 func TestIdempotencyFiltersDoNotRelyOnTTLSweep(t *testing.T) {
 	now := time.Date(2026, time.July, 29, 12, 0, 0, 0, time.UTC)
 	wantActive := bson.M{

@@ -1,5 +1,6 @@
 import {
   Bell,
+  ReceiptText,
   LockKeyhole,
   Palette,
   UserRound,
@@ -14,6 +15,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'settings-2', icon: LockKeyhole, label: 'Privacy and security' },
   { id: 'settings-3', icon: Bell, label: 'Notifications' },
   { id: 'settings-4', icon: WalletCards, label: 'Money preferences' },
+  { id: 'settings-5', icon: ReceiptText, label: 'Transactions' },
 ] as const satisfies ReadonlyArray<{
   id: string
   icon: LucideIcon

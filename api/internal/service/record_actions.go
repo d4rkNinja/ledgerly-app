@@ -269,6 +269,19 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 			}
 			return nil, err
 		}
+		if next.TransactionID != current.TransactionID {
+			sequenceStore, ok := s.store.(repository.TransactionSequenceStore)
+			if ok {
+				if _, err := sequenceStore.ReserveManualTransactionID(
+					transactionCtx,
+					workspaceID,
+					next.SequenceScope,
+					next.TransactionID,
+				); err != nil {
+					return nil, err
+				}
+			}
+		}
 		if err := s.applyTransactionBalanceChange(transactionCtx, current, oldSource, oldDestination, true, now); err != nil {
 			return nil, err
 		}
@@ -290,7 +303,7 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 		return &updated, nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, transactionIdentifierError(err, "transactionId")
 	}
 	updated, ok := result.(*model.Transaction)
 	if !ok {
@@ -308,6 +321,9 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 // view. A missing field therefore means "retain the existing protected
 // value"; an explicitly provided empty slice still clears that field.
 func preserveOmittedTransactionFields(input TransactionInput, existing model.Transaction) TransactionInput {
+	if strings.TrimSpace(input.TransactionID) == "" {
+		input.TransactionID = existing.TransactionID
+	}
 	if input.Tags == nil {
 		input.Tags = append([]string(nil), existing.Tags...)
 	}
@@ -348,6 +364,19 @@ func (s *FinanceService) transactionFromInput(ctx context.Context, workspaceID, 
 	case "expense", "income", "transfer", "refund", "reimbursement", "adjustment":
 	default:
 		return model.Transaction{}, nil, nil, &FieldError{Field: "type", Message: "is not supported"}
+	}
+	transactionID := strings.TrimSpace(input.TransactionID)
+	if transactionID != "" {
+		if _, err := model.ParseTransactionSequenceNumber(transactionID); err != nil {
+			return model.Transaction{}, nil, nil, &FieldError{Field: "transactionId", Message: err.Error()}
+		}
+	}
+	sequenceScope := model.TransactionSequenceScope(kind, len(input.Splits) > 0)
+	if existing != nil {
+		sequenceScope = existing.SequenceScope
+		if !model.IsTransactionSequenceType(sequenceScope) {
+			sequenceScope = model.TransactionSequenceScope(existing.Type, len(existing.Splits) > 0)
+		}
 	}
 	if err := validateMoney("amountMinor", input.AmountMinor, false); err != nil {
 		return model.Transaction{}, nil, nil, err
@@ -406,6 +435,10 @@ func (s *FinanceService) transactionFromInput(ctx context.Context, workspaceID, 
 	if err != nil {
 		return model.Transaction{}, nil, nil, err
 	}
+	category, err = s.validateTransactionCategory(ctx, workspaceID, kind, category, input.Splits, existing)
+	if err != nil {
+		return model.Transaction{}, nil, nil, err
+	}
 	merchant, err := validatedText("merchant", input.Merchant, 0, 200)
 	if err != nil {
 		return model.Transaction{}, nil, nil, err
@@ -433,6 +466,7 @@ func (s *FinanceService) transactionFromInput(ctx context.Context, workspaceID, 
 		}
 	}
 	return model.Transaction{
+		TransactionID: transactionID, SequenceScope: sequenceScope,
 		VaultID: input.VaultID, AccountID: input.AccountID, DestinationAccountID: input.DestinationAccountID,
 		Type: kind, AmountMinor: input.AmountMinor, Currency: currency, Category: category, Merchant: merchant,
 		Notes: notes, Description: description, ContactID: contactID, GoalID: goalID, Tags: normalizedTags(input.Tags), Splits: input.Splits, Privacy: privacy, OccurredAt: occurredAt,
@@ -534,6 +568,7 @@ func transactionSourceBalanceDelta(transaction model.Transaction) (int64, error)
 
 func transactionUpdateFields(transaction model.Transaction) repository.Filter {
 	return repository.Filter{
+		"transaction_id": transaction.TransactionID, "sequence_scope": transaction.SequenceScope,
 		"vault_id": transaction.VaultID, "account_id": transaction.AccountID, "destination_account_id": transaction.DestinationAccountID,
 		"type": transaction.Type, "amount_minor": transaction.AmountMinor, "currency": transaction.Currency,
 		"category": transaction.Category, "merchant": transaction.Merchant, "notes": transaction.Notes,
@@ -552,8 +587,12 @@ func (s *FinanceService) ShareTransaction(ctx context.Context, workspaceID, acto
 		return nil, err
 	}
 	label := safeRecordLabel(transaction.Category, friendlyTransactionType(transaction.Type))
-	lines := []string{fmt.Sprintf("%s: %s %s on %s", label, friendlyTransactionType(transaction.Type),
-		shareMoney(transaction.Currency, transaction.AmountMinor), shareDate(effectiveTransactionDate(*transaction)))}
+	lines := make([]string, 0, 6)
+	if transaction.TransactionID != "" {
+		lines = append(lines, "Transaction ID: "+transaction.TransactionID)
+	}
+	lines = append(lines, fmt.Sprintf("%s: %s %s on %s", label, friendlyTransactionType(transaction.Type),
+		shareMoney(transaction.Currency, transaction.AmountMinor), shareDate(effectiveTransactionDate(*transaction))))
 	if transaction.Merchant != "" && !strings.Contains(strings.ToLower(transaction.Merchant), "http://") && !strings.Contains(strings.ToLower(transaction.Merchant), "https://") {
 		lines = append(lines, "Name: "+transaction.Merchant)
 	}

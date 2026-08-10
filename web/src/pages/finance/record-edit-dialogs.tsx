@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { useApp } from '@/app/app-state'
 import { CurrencySelect } from '@/components/currency-select'
 import { DatePicker } from '@/components/date-picker'
@@ -12,7 +13,13 @@ import {
 } from '@/components/motion/select'
 import { Button, Dialog, Field } from '@/components/ui'
 import type { Budget, Goal, Transaction } from '@/domain/types'
+import {
+  selectableTransactionCategoryNames,
+  transactionCategoryModeFor,
+} from '@/domain/transaction-categories'
 import { api } from '@/lib/api-client'
+import { copyTextToClipboard } from '@/lib/clipboard'
+import { useTransactionCategories } from '@/lib/transaction-settings'
 import {
   dateOnlyFromUtc,
   isDateOnly,
@@ -376,11 +383,23 @@ export function TransactionEditDialog({
   const { demoMode, workspace } = useApp()
   const [values, setValues] = useState({ merchant: '', category: '', amount: '', occurredAt: '', note: '', description: '' })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [idCopyStatus, setIdCopyStatus] = useState('')
+  const categoryMode = transactionCategoryModeFor(transaction ?? {})
+  const categoriesQuery = useTransactionCategories(categoryMode, open)
+  const activeCategoryNames = useMemo(
+    () => selectableTransactionCategoryNames(categoriesQuery.data ?? []),
+    [categoriesQuery.data],
+  )
+  const historicalCategory =
+    transaction?.category && !activeCategoryNames.includes(transaction.category)
+      ? transaction.category
+      : ''
 
   useEffect(() => {
     if (!open || !transaction) return
     setValues({ merchant: transaction.merchant, category: transaction.category, amount: majorFromMinor(transaction.amount.amountMinor), occurredAt: dateOnlyFromUtc(transaction.occurredAt), note: transaction.note ?? '', description: transaction.description ?? '' })
     setErrors({})
+    setIdCopyStatus('')
   }, [open, transaction])
 
   const flow = useWriteFlow<TransactionRequest>({
@@ -438,12 +457,82 @@ export function TransactionEditDialog({
   return (
     <Dialog open={open} title="Edit transaction" description="Update the entry while keeping its account and audit history intact." onClose={flow.busy ? () => undefined : onClose}>
       <form className="dialog-form finance-write-form" onSubmit={submit} aria-busy={flow.busy || undefined}>
+        {transaction?.transactionId ? (
+          <Field
+            label="Transaction ID"
+            hint={idCopyStatus || 'The transaction ID cannot be changed after creation.'}
+          >
+            <div className="transaction-id-readonly-control">
+              <input value={transaction.transactionId} readOnly />
+              <Button
+                type="button"
+                variant="secondary"
+                aria-label="Copy transaction ID"
+                onClick={() => {
+                  void copyTextToClipboard(transaction.transactionId ?? '').then(
+                    (copied) =>
+                      setIdCopyStatus(
+                        copied
+                          ? 'Transaction ID copied.'
+                          : 'Copy unavailable. Select the ID and copy it manually.',
+                      ),
+                  )
+                }}
+              >
+                {idCopyStatus === 'Transaction ID copied.' ? (
+                  <Check aria-hidden="true" />
+                ) : (
+                  <Copy aria-hidden="true" />
+                )}
+                Copy
+              </Button>
+            </div>
+          </Field>
+        ) : null}
         <Field label="Description" error={errors.merchant}><input autoFocus maxLength={200} value={values.merchant} onChange={(event) => { clearFieldError(setErrors, 'merchant'); setValues((current) => ({ ...current, merchant: event.target.value })) }} /></Field>
         <div className="two-fields">
           <Field label="Amount" error={errors.amount} hint={transaction?.hasSplits ? 'This split amount stays fixed until its participant shares are edited.' : undefined}><div className="currency-input has-currency-select currency-input-icon-only"><CurrencySelect compact iconOnly value={transaction?.amount.currency ?? 'INR'} onChange={() => undefined} ariaLabel="Transaction currency" disabled /><input inputMode="decimal" value={values.amount} disabled={transaction?.hasSplits} onChange={(event) => { clearFieldError(setErrors, 'amount'); setValues((current) => ({ ...current, amount: event.target.value })) }} /></div></Field>
           <DatePicker label="Transaction date" value={values.occurredAt} error={errors.occurredAt} clearable onValueChange={(value) => { clearFieldError(setErrors, 'occurredAt'); setValues((current) => ({ ...current, occurredAt: value })) }} />
         </div>
-        <Field label="Category" error={errors.category}><input maxLength={100} value={values.category} onChange={(event) => { clearFieldError(setErrors, 'category'); setValues((current) => ({ ...current, category: event.target.value })) }} /></Field>
+        <Field
+          label="Category"
+          error={
+            errors.category ??
+            (categoriesQuery.isError
+              ? 'Categories could not be loaded. Try again.'
+              : undefined)
+          }
+          hint={
+            historicalCategory
+              ? 'The historical category is disabled. Choose an active category to change it.'
+              : undefined
+          }
+        >
+          <Select
+            value={values.category}
+            disabled={categoriesQuery.isLoading || categoriesQuery.isError}
+            onValueChange={(category) => {
+              clearFieldError(setErrors, 'category')
+              setValues((current) => ({ ...current, category }))
+            }}
+          >
+            <SelectTrigger className="w-full" data-field-control>
+              <SelectValue placeholder="Choose category" />
+            </SelectTrigger>
+            <SelectContent>
+              {historicalCategory ? (
+                <SelectItem value={historicalCategory} disabled>
+                  {historicalCategory} (disabled)
+                </SelectItem>
+              ) : null}
+              {activeCategoryNames.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
         <Field label="Note" error={errors.note}><textarea maxLength={2000} value={values.note} onChange={(event) => { clearFieldError(setErrors, 'note'); setValues((current) => ({ ...current, note: event.target.value })) }} /></Field>
 		<Field label="Description" error={errors.description}><textarea maxLength={2000} value={values.description} onChange={(event) => { clearFieldError(setErrors, 'description'); setValues((current) => ({ ...current, description: event.target.value })) }} /></Field>
         <FormFeedback message={flow.feedback?.message} />

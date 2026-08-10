@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -10,22 +11,24 @@ import (
 )
 
 type TransactionInput struct {
-	VaultID              string        `json:"vaultId"`
-	AccountID            string        `json:"accountId"`
-	DestinationAccountID string        `json:"destinationAccountId"`
-	Type                 string        `json:"type"`
-	AmountMinor          int64         `json:"amountMinor"`
-	Currency             string        `json:"currency"`
-	Category             string        `json:"category"`
-	Merchant             string        `json:"merchant"`
-	Notes                string        `json:"notes"`
-	Description          string        `json:"description"`
-	ContactID            string        `json:"contactId"`
-	GoalID               string        `json:"goalId"`
-	Tags                 []string      `json:"tags"`
-	Splits               []model.Split `json:"splits"`
-	Privacy              string        `json:"privacy"`
-	OccurredAt           time.Time     `json:"occurredAt"`
+	VaultID                   string        `json:"vaultId"`
+	AccountID                 string        `json:"accountId"`
+	DestinationAccountID      string        `json:"destinationAccountId"`
+	TransactionID             string        `json:"transactionId"`
+	AutoGenerateTransactionID *bool         `json:"autoGenerateTransactionId"`
+	Type                      string        `json:"type"`
+	AmountMinor               int64         `json:"amountMinor"`
+	Currency                  string        `json:"currency"`
+	Category                  string        `json:"category"`
+	Merchant                  string        `json:"merchant"`
+	Notes                     string        `json:"notes"`
+	Description               string        `json:"description"`
+	ContactID                 string        `json:"contactId"`
+	GoalID                    string        `json:"goalId"`
+	Tags                      []string      `json:"tags"`
+	Splits                    []model.Split `json:"splits"`
+	Privacy                   string        `json:"privacy"`
+	OccurredAt                time.Time     `json:"occurredAt"`
 }
 
 func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, actorID, idempotencyKey string, input TransactionInput) (*model.Transaction, error) {
@@ -36,11 +39,22 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, act
 	if len(idempotencyKey) < 8 || len(idempotencyKey) > 128 {
 		return nil, &FieldError{Field: "Idempotency-Key", Message: "header must contain 8 to 128 characters"}
 	}
-	kind := strings.ToLower(strings.TrimSpace(input.Type))
-	switch kind {
-	case "expense", "income", "transfer", "refund", "reimbursement", "adjustment":
+	requestedKind := strings.ToLower(strings.TrimSpace(input.Type))
+	switch requestedKind {
+	case "expense", "income", "transfer", "split", "refund", "reimbursement", "adjustment":
 	default:
 		return nil, &FieldError{Field: "type", Message: "is not supported"}
+	}
+	if requestedKind == model.TransactionSequenceSplit && len(input.Splits) == 0 {
+		return nil, &FieldError{Field: "splits", Message: "must contain at least one workspace member for a split transaction"}
+	}
+	kind := requestedKind
+	if kind == model.TransactionSequenceSplit {
+		kind = model.TransactionSequenceExpense
+	}
+	transactionID, autoGenerateTransactionID, err := transactionIdentifierForCreate(input)
+	if err != nil {
+		return nil, err
 	}
 	if err := validateMoney("amountMinor", input.AmountMinor, false); err != nil {
 		return nil, err
@@ -101,6 +115,10 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, act
 	if err != nil {
 		return nil, err
 	}
+	category, err = s.validateTransactionCategory(ctx, workspaceID, kind, category, input.Splits, nil)
+	if err != nil {
+		return nil, err
+	}
 	merchant, err := validatedText("merchant", input.Merchant, 0, 200)
 	if err != nil {
 		return nil, err
@@ -128,7 +146,9 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, act
 		}
 	}
 	tx := &model.Transaction{
-		ID: newID(), WorkspaceID: workspaceID, VaultID: input.VaultID,
+		ID: newID(), WorkspaceID: workspaceID, TransactionID: transactionID,
+		SequenceScope:             model.TransactionSequenceScope(kind, len(input.Splits) > 0),
+		AutoGenerateTransactionID: autoGenerateTransactionID, VaultID: input.VaultID,
 		AccountID: input.AccountID, DestinationAccountID: input.DestinationAccountID,
 		CreatedBy: actorID, Type: kind, AmountMinor: input.AmountMinor, Currency: currency,
 		Category: category, Merchant: merchant,
@@ -146,22 +166,26 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, act
 	)
 	created, err := s.store.CreateFinancialTransaction(ctx, tx, idempotencyKey, requestOccurredAt, audit)
 	if err != nil {
-		return nil, err
+		return nil, transactionIdentifierError(err, "transactionId")
 	}
 	return created, nil
 }
 
 type TransactionFilter struct {
-	VaultID   string
-	AccountID string
-	ContactID string
-	Type      string
-	Category  string
-	Merchant  string
-	From      *time.Time
-	To        *time.Time
-	Limit     int64
-	Skip      int64
+	VaultID        string
+	AccountID      string
+	ContactID      string
+	TransactionID  string
+	Type           string
+	Category       string
+	Merchant       string
+	Search         string
+	MinAmountMinor *int64
+	MaxAmountMinor *int64
+	From           *time.Time
+	To             *time.Time
+	Limit          int64
+	Skip           int64
 }
 
 func (s *FinanceService) ListTransactions(ctx context.Context, workspaceID, actorID string, input TransactionFilter) ([]model.Transaction, error) {
@@ -325,14 +349,72 @@ func transactionQueryForScope(
 	if input.ContactID != "" {
 		filter["contact_id"] = strings.TrimSpace(input.ContactID)
 	}
+	if input.TransactionID != "" {
+		transactionID := strings.TrimSpace(input.TransactionID)
+		if _, err := model.ParseTransactionSequenceNumber(transactionID); err != nil {
+			return nil, false, &FieldError{Field: "transactionId", Message: err.Error()}
+		}
+		filter["transaction_id"] = transactionID
+	}
 	if input.Type != "" {
-		filter["type"] = strings.ToLower(strings.TrimSpace(input.Type))
+		switch strings.ToLower(strings.TrimSpace(input.Type)) {
+		case model.TransactionSequenceSplit:
+			filter["splits.0"] = repository.Filter{"$exists": true}
+		case model.TransactionSequenceExpense:
+			filter["type"] = repository.Filter{"$in": []string{"expense", "adjustment"}}
+			filter["splits.0"] = repository.Filter{"$exists": false}
+		case model.TransactionSequenceIncome:
+			filter["type"] = repository.Filter{"$in": []string{"income", "refund", "reimbursement"}}
+			filter["splits.0"] = repository.Filter{"$exists": false}
+		case model.TransactionSequenceTransfer:
+			filter["type"] = "transfer"
+			filter["splits.0"] = repository.Filter{"$exists": false}
+		default:
+			filter["type"] = strings.ToLower(strings.TrimSpace(input.Type))
+		}
 	}
 	if input.Category != "" {
 		filter["category"] = strings.TrimSpace(input.Category)
 	}
 	if input.Merchant != "" {
 		filter["merchant"] = strings.TrimSpace(input.Merchant)
+	}
+	if search := strings.TrimSpace(input.Search); search != "" {
+		if len([]rune(search)) > 100 {
+			return nil, false, &FieldError{Field: "search", Message: "must contain at most 100 characters"}
+		}
+		pattern := regexp.QuoteMeta(search)
+		visibility := filter["$or"]
+		delete(filter, "$or")
+		filter["$and"] = []repository.Filter{
+			{"$or": visibility},
+			{"$or": []repository.Filter{
+				{"transaction_id": repository.Filter{"$regex": "^" + pattern}},
+				{"merchant": repository.Filter{"$regex": pattern, "$options": "i"}},
+				{"category": repository.Filter{"$regex": pattern, "$options": "i"}},
+				{"description": repository.Filter{"$regex": pattern, "$options": "i"}},
+				{"notes": repository.Filter{"$regex": pattern, "$options": "i"}},
+			}},
+		}
+	}
+	if input.MinAmountMinor != nil || input.MaxAmountMinor != nil {
+		amount := repository.Filter{}
+		if input.MinAmountMinor != nil {
+			if *input.MinAmountMinor < 0 || *input.MinAmountMinor > maxMoneyMinor {
+				return nil, false, &FieldError{Field: "minAmountMinor", Message: "must be between 0 and the supported maximum"}
+			}
+			amount["$gte"] = *input.MinAmountMinor
+		}
+		if input.MaxAmountMinor != nil {
+			if *input.MaxAmountMinor < 0 || *input.MaxAmountMinor > maxMoneyMinor {
+				return nil, false, &FieldError{Field: "maxAmountMinor", Message: "must be between 0 and the supported maximum"}
+			}
+			amount["$lte"] = *input.MaxAmountMinor
+		}
+		if input.MinAmountMinor != nil && input.MaxAmountMinor != nil && *input.MinAmountMinor > *input.MaxAmountMinor {
+			return nil, false, &FieldError{Field: "amount", Message: "minimum amount must not exceed maximum amount"}
+		}
+		filter["amount_minor"] = amount
 	}
 	addTransactionDateClause(filter, dateRange)
 	return filter, false, nil
@@ -345,6 +427,45 @@ func (s *FinanceService) validateSplits(ctx context.Context, workspaceID string,
 	if len(splits) > 100 {
 		return &FieldError{Field: "splits", Message: "must contain at most 100 members"}
 	}
+	emails := make([]string, 0, len(splits))
+	for index := range splits {
+		splits[index].UserID = strings.TrimSpace(splits[index].UserID)
+		if splits[index].UserID != "" {
+			continue
+		}
+		email := strings.ToLower(strings.TrimSpace(splits[index].MemberEmail))
+		if email == "" {
+			return &FieldError{Field: "splits", Message: "must contain members with positive amounts"}
+		}
+		emails = append(emails, email)
+		splits[index].MemberEmail = email
+	}
+	if len(emails) > 0 {
+		var users []model.User
+		if err := s.store.FindMany(ctx, "users", repository.Filter{
+			"email": repository.Filter{"$in": emails},
+		}, &users, int64(len(emails)), 0, nil); err != nil {
+			return err
+		}
+		usersByEmail := make(map[string]string, len(users))
+		for _, user := range users {
+			if email := strings.ToLower(strings.TrimSpace(user.Email)); email != "" {
+				usersByEmail[email] = user.ID
+			}
+		}
+		for index := range splits {
+			if splits[index].UserID != "" {
+				continue
+			}
+			userID := usersByEmail[splits[index].MemberEmail]
+			if userID == "" {
+				return &FieldError{Field: "splits", Message: "must reference active workspace members"}
+			}
+			splits[index].UserID = userID
+			splits[index].MemberEmail = ""
+		}
+	}
+
 	total := int64(0)
 	userIDs := make([]string, 0, len(splits))
 	seen := make(map[string]struct{}, len(splits))

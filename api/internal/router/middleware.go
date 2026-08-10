@@ -122,6 +122,7 @@ func cors(allowed []string) func(http.Handler) http.Handler {
 			if origin != "" && originAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Expose-Headers", "Content-Disposition, X-Request-ID")
 			} else if origin == "" && allowAll {
 				w.Header().Set("Access-Control-Allow-Origin", "*")
 			}

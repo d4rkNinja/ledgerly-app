@@ -266,6 +266,42 @@ func TestCreateTransactionRejectsMissingIdempotencyAndInvalidSplits(t *testing.T
 	}
 }
 
+func TestCreateSplitResolvesMemberEmailsWithoutExposingInternalIDs(t *testing.T) {
+	finance, store := testFinance()
+	created, err := finance.CreateTransaction(context.Background(), "workspace-a", "user-a", "split-request-1234", TransactionInput{
+		VaultID: "vault-a", AccountID: "account-a", Type: "split",
+		AmountMinor: 1000, Currency: "INR", Category: "Shared",
+		Splits: []model.Split{
+			{MemberEmail: " ASHA@example.test ", AmountMinor: 400},
+			{MemberEmail: "ben@example.test", AmountMinor: 600},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateTransaction(split): %v", err)
+	}
+	if created.Type != "expense" || created.SequenceScope != model.TransactionSequenceSplit {
+		t.Fatalf("created split type/scope = %q/%q", created.Type, created.SequenceScope)
+	}
+	if len(created.Splits) != 2 || created.Splits[0].UserID != "user-a" || created.Splits[1].UserID != "user-b" {
+		t.Fatalf("resolved splits = %#v", created.Splits)
+	}
+	if created.Splits[0].MemberEmail != "" || created.Splits[1].MemberEmail != "" || store.created == nil {
+		t.Fatalf("request-only member emails reached persistence: %#v", created.Splits)
+	}
+}
+
+func TestCreateSplitRequiresShares(t *testing.T) {
+	finance, _ := testFinance()
+	_, err := finance.CreateTransaction(context.Background(), "workspace-a", "user-a", "split-request-1234", TransactionInput{
+		VaultID: "vault-a", AccountID: "account-a", Type: "split",
+		AmountMinor: 1000, Currency: "INR",
+	})
+	var fieldErr *FieldError
+	if !errors.As(err, &fieldErr) || fieldErr.Field != "splits" {
+		t.Fatalf("missing split shares error = %v, want splits validation", err)
+	}
+}
+
 func TestCreateTransactionRejectsOversizedTextFields(t *testing.T) {
 	finance, _ := testFinance()
 	_, err := finance.CreateTransaction(context.Background(), "workspace-a", "user-a", "request-1234", TransactionInput{

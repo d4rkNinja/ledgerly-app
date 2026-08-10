@@ -64,4 +64,23 @@ describe('workspace export', () => {
       '/workspaces/workspace-a/export.csv?from=2026-08-01&to=2026-08-31',
     )
   })
+
+  it('forwards the active transaction query without changing values or order', async () => {
+    downloadMock.mockResolvedValueOnce({
+      filename: 'filtered.csv',
+      content: 'section\ntransactions\n',
+    })
+    const filters = new URLSearchParams(
+      'transactionId=0042&type=expense&minAmountMinor=1250&maxAmountMinor=9999',
+    )
+
+    await downloadWorkspaceExport('workspace-a', filters)
+
+    expect(downloadMock).toHaveBeenLastCalledWith(
+      '/workspaces/workspace-a/export.csv?transactionId=0042&type=expense&minAmountMinor=1250&maxAmountMinor=9999',
+    )
+    expect(filters.toString()).toBe(
+      'transactionId=0042&type=expense&minAmountMinor=1250&maxAmountMinor=9999',
+    )
+  })
 })

@@ -91,6 +91,8 @@ export interface CurrentUser {
 
 export interface Transaction {
   id: string
+  transactionId?: string
+  transactionIdScope?: 'expense' | 'income' | 'transfer' | 'split'
   merchant: string
   category: string
   occurredAt: string
@@ -100,7 +102,7 @@ export interface Transaction {
   status: 'cleared' | 'pending'
   accountId: string
   destinationAccountId?: string
-  rawType?: 'expense' | 'income' | 'transfer' | 'refund' | 'reimbursement' | 'adjustment'
+  rawType?: 'expense' | 'income' | 'transfer' | 'split' | 'refund' | 'reimbursement' | 'adjustment'
   privacy?: 'private' | 'workspace' | 'selected'
   /** True when the server maintains participant allocations for this entry. */
   hasSplits?: boolean
@@ -148,6 +150,7 @@ export interface DashboardCashflowPoint {
 
 export interface DashboardActivity {
   id: string
+  transactionId?: string
   label: string
   type: string
   category?: string

@@ -32,7 +32,7 @@ func TestMongoIndexSpecificationsAreDeterministicAndUnique(t *testing.T) {
 	required := []string{
 		"users", "workspaces", "sessions", "memberships", "invitations", "workspace_join_requests", "idempotency",
 		"transactions", "vaults", "accounts", "budgets", "goals", "goal_action_idempotency",
-		"recurring_transactions", "expense_claims", "notifications", "audit_events",
+		"recurring_transactions", "expense_claims", "notifications", "transaction_categories", "transaction_sequences", "audit_events",
 	}
 	for _, collection := range required {
 		if !seenCollections[collection] {
@@ -99,6 +99,16 @@ func TestOperationalIndexesMatchServiceFilters(t *testing.T) {
 		keys       bson.D
 	}{
 		{
+			collection: "transactions",
+			name:       "workspace_transaction_id_lookup",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_id", Value: 1}},
+		},
+		{
+			collection: "transaction_sequences",
+			name:       "workspace_transaction_sequence_unique",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}},
+		},
+		{
 			collection: "workspace_join_requests",
 			name:       "workspace_pending_requests",
 			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}, {Key: "created_at", Value: -1}},
@@ -153,6 +163,24 @@ func TestOperationalIndexesMatchServiceFilters(t *testing.T) {
 			name:       "user_membership_scan",
 			keys:       bson.D{{Key: "user_id", Value: 1}, {Key: "_id", Value: 1}},
 		},
+		{
+			collection: "transaction_categories",
+			name:       "workspace_type_category_name_unique",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}, {Key: "normalized_name", Value: 1}},
+		},
+		{
+			collection: "transaction_categories",
+			name:       "workspace_type_category_order",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}, {Key: "sort_order", Value: 1}, {Key: "name", Value: 1}, {Key: "_id", Value: 1}},
+		},
+	}
+
+	transactionID := findIndex(t, "transactions", "workspace_sequence_transaction_id_unique")
+	if transactionID.Options.Unique == nil || !*transactionID.Options.Unique {
+		t.Fatal("transaction ID index must be unique")
+	}
+	if !reflect.DeepEqual(transactionID.Options.PartialFilterExpression, transactionIDIndexFilter()) {
+		t.Fatalf("transaction ID partial filter = %#v, want %#v", transactionID.Options.PartialFilterExpression, transactionIDIndexFilter())
 	}
 
 	for _, test := range tests {
@@ -183,6 +211,11 @@ func TestOperationalIndexesMatchServiceFilters(t *testing.T) {
 	wantPendingPartial := bson.D{{Key: "status", Value: "pending"}}
 	if !reflect.DeepEqual(ttl.Options.PartialFilterExpression, wantPendingPartial) {
 		t.Fatalf("TTL partial filter = %#v, want %#v", ttl.Options.PartialFilterExpression, wantPendingPartial)
+	}
+
+	categoryUnique := findIndex(t, "transaction_categories", "workspace_type_category_name_unique")
+	if categoryUnique.Options.Unique == nil || !*categoryUnique.Options.Unique {
+		t.Fatal("transaction category normalized-name index must be unique")
 	}
 }
 

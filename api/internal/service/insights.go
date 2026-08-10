@@ -163,18 +163,19 @@ type DashboardCashflowPoint struct {
 }
 
 type DashboardActivity struct {
-	ID          string                `json:"id"`
-	Label       string                `json:"label"`
-	Type        string                `json:"type"`
-	Category    string                `json:"category,omitempty"`
-	AccountID   string                `json:"accountId,omitempty"`
-	ContactID   string                `json:"contactId,omitempty"`
-	Contact     *model.ContactSummary `json:"contact,omitempty"`
-	Creator     *model.CreatorSummary `json:"creator,omitempty"`
-	Description string                `json:"description,omitempty"`
-	AmountMinor int64                 `json:"amountMinor"`
-	Currency    string                `json:"currency"`
-	OccurredAt  time.Time             `json:"occurredAt"`
+	ID            string                `json:"id"`
+	TransactionID string                `json:"transactionId,omitempty"`
+	Label         string                `json:"label"`
+	Type          string                `json:"type"`
+	Category      string                `json:"category,omitempty"`
+	AccountID     string                `json:"accountId,omitempty"`
+	ContactID     string                `json:"contactId,omitempty"`
+	Contact       *model.ContactSummary `json:"contact,omitempty"`
+	Creator       *model.CreatorSummary `json:"creator,omitempty"`
+	Description   string                `json:"description,omitempty"`
+	AmountMinor   int64                 `json:"amountMinor"`
+	Currency      string                `json:"currency"`
+	OccurredAt    time.Time             `json:"occurredAt"`
 }
 
 func emptyDashboardAnalytics() DashboardAnalytics {
@@ -849,7 +850,7 @@ func buildDashboardAnalytics(transactions []model.Transaction, currency string) 
 
 func dashboardActivityForTransaction(transaction model.Transaction, label string, occurredAt time.Time, currency string) DashboardActivity {
 	return DashboardActivity{
-		ID: transaction.ID, Label: label, Type: transaction.Type, Category: strings.TrimSpace(transaction.Category),
+		ID: transaction.ID, TransactionID: transaction.TransactionID, Label: label, Type: transaction.Type, Category: strings.TrimSpace(transaction.Category),
 		AccountID: transaction.AccountID, ContactID: transaction.ContactID, Contact: transaction.Contact,
 		Creator: transaction.Creator, Description: transaction.Description, AmountMinor: transaction.AmountMinor,
 		Currency: valueOrDefault(transaction.Currency, currency), OccurredAt: occurredAt,
@@ -934,14 +935,42 @@ func (s *FinanceService) Search(ctx context.Context, workspaceID, actorID, query
 	if len(accountIDs) == 0 {
 		return result, nil
 	}
-	if err := s.store.FindMany(ctx, "transactions", repository.Filter{
+	transactionScope := repository.Filter{
 		"workspace_id": workspaceID, "vault_id": repository.Filter{"$in": vaultIDs},
 		"account_id": repository.Filter{"$in": accountIDs},
-		"$text":      textSearch,
 		"$or":        []repository.Filter{{"privacy": "workspace"}, {"created_by": actorID}},
-	}, &result.Transactions, 20, 0, repository.Sort{"occurred_at": -1}); err != nil {
+	}
+	if isNumericTransactionIDQuery(query) {
+		exactIdentifierQuery := cloneFilter(transactionScope)
+		exactIdentifierQuery["transaction_id"] = query
+		var exactIdentifierMatches []model.Transaction
+		if err := s.store.FindMany(
+			ctx, "transactions", exactIdentifierQuery, &exactIdentifierMatches, 20, 0,
+			repository.Sort{"occurred_at": -1},
+		); err != nil {
+			return nil, err
+		}
+		result.Transactions = appendUniqueSearchTransactions(result.Transactions, exactIdentifierMatches, 20)
+
+		idFilter, _ := transactionIDPrefixFilter(query)
+		identifierQuery := cloneFilter(transactionScope)
+		identifierQuery["transaction_id"] = idFilter
+		var identifierMatches []model.Transaction
+		if err := s.store.FindMany(
+			ctx, "transactions", identifierQuery, &identifierMatches, 20, 0,
+			repository.Sort{"occurred_at": -1},
+		); err != nil {
+			return nil, err
+		}
+		result.Transactions = appendUniqueSearchTransactions(result.Transactions, identifierMatches, 20)
+	}
+	textTransactionQuery := cloneFilter(transactionScope)
+	textTransactionQuery["$text"] = textSearch
+	var textMatches []model.Transaction
+	if err := s.store.FindMany(ctx, "transactions", textTransactionQuery, &textMatches, 20, 0, repository.Sort{"occurred_at": -1}); err != nil {
 		return nil, err
 	}
+	result.Transactions = appendUniqueSearchTransactions(result.Transactions, textMatches, 20)
 	if !canViewAssets {
 		return result, nil
 	}
@@ -951,6 +980,45 @@ func (s *FinanceService) Search(ctx context.Context, workspaceID, actorID, query
 		return nil, err
 	}
 	return result, nil
+}
+
+func isNumericTransactionIDQuery(query string) bool {
+	query = strings.TrimSpace(query)
+	if query == "" || len(query) > model.MaximumTransactionSequenceDigits {
+		return false
+	}
+	for _, character := range query {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func cloneFilter(filter repository.Filter) repository.Filter {
+	cloned := make(repository.Filter, len(filter)+1)
+	for key, value := range filter {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func appendUniqueSearchTransactions(existing, candidates []model.Transaction, limit int) []model.Transaction {
+	seen := make(map[string]struct{}, len(existing)+len(candidates))
+	for _, transaction := range existing {
+		seen[transaction.ID] = struct{}{}
+	}
+	for _, transaction := range candidates {
+		if len(existing) >= limit {
+			break
+		}
+		if _, duplicate := seen[transaction.ID]; duplicate {
+			continue
+		}
+		seen[transaction.ID] = struct{}{}
+		existing = append(existing, transaction)
+	}
+	return existing
 }
 
 type Report struct {

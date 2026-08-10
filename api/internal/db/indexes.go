@@ -31,6 +31,8 @@ const (
 	auditEventsCollection           = "audit_events"
 	contactsCollection              = "contacts"
 	savedTransactionNamesCollection = "saved_transaction_names"
+	transactionCategoriesCollection = "transaction_categories"
+	transactionSequencesCollection  = "transaction_sequences"
 )
 
 // mongoIndexSpecifications is ordered so startup index creation and failures
@@ -117,12 +119,20 @@ func mongoIndexSpecifications() []collectionIndexes {
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "account_id", Value: 1}, {Key: "occurred_at", Value: -1}}, Options: options.Index().SetName("account_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "category", Value: 1}, {Key: "occurred_at", Value: -1}}, Options: options.Index().SetName("category_reports")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "merchant", Value: "text"}, {Key: "notes", Value: "text"}, {Key: "category", Value: "text"}}, Options: options.Index().SetName("transaction_search")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "sequence_scope", Value: 1}, {Key: "transaction_id", Value: 1}}, Options: options.Index().SetUnique(true).SetPartialFilterExpression(transactionIDIndexFilter()).SetName("workspace_sequence_transaction_id_unique")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_id", Value: 1}}, Options: options.Index().SetName("workspace_transaction_id_lookup")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "vault_id", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_vault_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "vault_id", Value: 1}, {Key: "account_id", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_vault_account_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "vault_id", Value: 1}, {Key: "type", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_vault_type_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "vault_id", Value: 1}, {Key: "category", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_vault_category_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "vault_id", Value: 1}, {Key: "contact_id", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_vault_contact_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "goal_id", Value: 1}, {Key: "occurred_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_goal_history")},
+			},
+		},
+		{
+			collection: transactionSequencesCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}}, Options: options.Index().SetUnique(true).SetName("workspace_transaction_sequence_unique")},
 			},
 		},
 		{
@@ -205,6 +215,13 @@ func mongoIndexSpecifications() []collectionIndexes {
 			},
 		},
 		{
+			collection: transactionCategoriesCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}, {Key: "normalized_name", Value: 1}}, Options: options.Index().SetUnique(true).SetName("workspace_type_category_name_unique")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}, {Key: "sort_order", Value: 1}, {Key: "name", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("workspace_type_category_order")},
+			},
+		},
+		{
 			collection: auditEventsCollection,
 			models: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_audit")},
@@ -216,6 +233,13 @@ func mongoIndexSpecifications() []collectionIndexes {
 
 func contactNormalizedNameIndexFilter() bson.D {
 	return bson.D{{Key: "normalized_name", Value: bson.D{{Key: "$type", Value: "string"}, {Key: "$gt", Value: ""}}}}
+}
+
+func transactionIDIndexFilter() bson.D {
+	return bson.D{
+		{Key: "sequence_scope", Value: bson.D{{Key: "$type", Value: "string"}, {Key: "$gt", Value: ""}}},
+		{Key: "transaction_id", Value: bson.D{{Key: "$type", Value: "string"}, {Key: "$gt", Value: ""}}},
+	}
 }
 
 // pendingInvitationEmailIndexFilter deliberately excludes manual token invites

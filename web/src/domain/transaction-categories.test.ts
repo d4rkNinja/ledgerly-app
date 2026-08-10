@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   categoriesForTransactionMode,
   categoryForTransactionMode,
+  transactionSequencePreview,
 } from './transaction-categories'
 
 describe('transaction categories', () => {
@@ -20,8 +21,8 @@ describe('transaction categories', () => {
     expect(categories).not.toContain('Groceries')
   })
 
-  it('does not ask for a category when recording a transfer', () => {
-    expect(categoriesForTransactionMode('transfer')).toEqual([])
+  it('provides a demo-only transfer category', () => {
+    expect(categoriesForTransactionMode('transfer')).toEqual(['Transfer'])
   })
 
   it('resets an invalid category to the first valid income category', () => {
@@ -30,5 +31,10 @@ describe('transaction categories', () => {
 
   it('keeps a category that belongs to the selected mode', () => {
     expect(categoryForTransactionMode('income', 'Freelance')).toBe('Freelance')
+  })
+
+  it('pads sequence previews without adding a prefix', () => {
+    expect(transactionSequencePreview(42, 6)).toBe('000042')
+    expect(transactionSequencePreview(12345, 3)).toBe('12345')
   })
 })

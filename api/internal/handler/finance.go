@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,34 +121,115 @@ func (a *API) Transactions(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter := service.TransactionFilter{
-		VaultID:   r.URL.Query().Get("vaultId"),
-		AccountID: r.URL.Query().Get("accountId"),
-		ContactID: r.URL.Query().Get("contactId"),
-		Type:      r.URL.Query().Get("type"),
-		Category:  r.URL.Query().Get("category"),
-		Merchant:  r.URL.Query().Get("merchant"),
-		Limit:     limit,
-		Skip:      skip,
-	}
-	from, present, err := timeQuery(r, "from")
+	filter, err := transactionFilterQuery(r)
 	if err != nil {
 		a.serviceError(w, err)
 		return
+	}
+	filter.Limit = limit
+	filter.Skip = skip
+	items, err := a.finance.ListTransactions(r.Context(), workspaceID(r), currentUser(r).ID, filter)
+	a.writeItems(w, items, err)
+}
+
+func transactionFilterQuery(r *http.Request) (service.TransactionFilter, error) {
+	filter := service.TransactionFilter{
+		VaultID:       r.URL.Query().Get("vaultId"),
+		AccountID:     r.URL.Query().Get("accountId"),
+		ContactID:     r.URL.Query().Get("contactId"),
+		TransactionID: r.URL.Query().Get("transactionId"),
+		Type:          r.URL.Query().Get("type"),
+		Category:      r.URL.Query().Get("category"),
+		Merchant:      r.URL.Query().Get("merchant"),
+		Search:        r.URL.Query().Get("search"),
+	}
+	var err error
+	filter.MinAmountMinor, err = optionalAmountMinorQuery(r, "minAmountMinor")
+	if err != nil {
+		return service.TransactionFilter{}, err
+	}
+	filter.MaxAmountMinor, err = optionalAmountMinorQuery(r, "maxAmountMinor")
+	if err != nil {
+		return service.TransactionFilter{}, err
+	}
+	if filter.MinAmountMinor != nil && filter.MaxAmountMinor != nil && *filter.MinAmountMinor > *filter.MaxAmountMinor {
+		return service.TransactionFilter{}, &service.FieldError{Field: "amount", Message: "minimum amount must not exceed maximum amount"}
+	}
+	from, present, err := transactionDateQuery(r, "from")
+	if err != nil {
+		return service.TransactionFilter{}, err
 	}
 	if present {
 		filter.From = &from
 	}
-	to, present, err := timeQuery(r, "to")
+	to, present, err := transactionDateQuery(r, "to")
 	if err != nil {
-		a.serviceError(w, err)
-		return
+		return service.TransactionFilter{}, err
 	}
 	if present {
 		filter.To = &to
 	}
-	items, err := a.finance.ListTransactions(r.Context(), workspaceID(r), currentUser(r).ID, filter)
-	a.writeItems(w, items, err)
+	return filter, nil
+}
+
+func transactionDateQuery(r *http.Request, field string) (time.Time, bool, error) {
+	query := r.URL.Query()
+	if !query.Has(field) {
+		return time.Time{}, false, nil
+	}
+	raw := strings.TrimSpace(query.Get(field))
+	if value, err := time.Parse(time.RFC3339, raw); err == nil {
+		return value.UTC(), true, nil
+	}
+	if value, err := time.Parse("2006-01-02", raw); err == nil && value.Format("2006-01-02") == raw {
+		// Date-only export ranges historically use an inclusive end date. The
+		// service query itself remains half-open, so advance only date-only `to`.
+		if field == "to" {
+			value = value.AddDate(0, 0, 1)
+		}
+		return value.UTC(), true, nil
+	}
+	return time.Time{}, true, &service.FieldError{Field: field, Message: "must be a valid RFC3339 timestamp or YYYY-MM-DD date"}
+}
+
+func optionalAmountMinorQuery(r *http.Request, field string) (*int64, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get(field))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value < 0 {
+		return nil, &service.FieldError{Field: field, Message: "must be a non-negative whole number of minor currency units"}
+	}
+	return &value, nil
+}
+
+func (a *API) TransactionSequences(w http.ResponseWriter, r *http.Request) {
+	items, err := a.finance.ListTransactionSequences(r.Context(), workspaceID(r), currentUser(r).ID)
+	if err != nil {
+		a.serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
+func (a *API) UpdateTransactionSequence(w http.ResponseWriter, r *http.Request) {
+	var input service.TransactionSequenceInput
+	if !a.decode(w, r, &input) {
+		return
+	}
+	item, err := a.finance.UpdateTransactionSequence(
+		r.Context(),
+		workspaceID(r),
+		currentUser(r).ID,
+		chi.URLParam(r, "transactionType"),
+		input,
+	)
+	if err != nil {
+		a.serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
 }
 
 func (a *API) Transaction(w http.ResponseWriter, r *http.Request) {
@@ -716,13 +798,13 @@ func dashboardMonthQuery(r *http.Request) (*time.Time, error) {
 }
 
 func (a *API) ExportWorkspaceCSV(w http.ResponseWriter, r *http.Request) {
-	dateRange, _, err := dateRangeQuery(r)
+	filter, err := transactionFilterQuery(r)
 	if err != nil {
 		a.serviceError(w, err)
 		return
 	}
 	content, filename, err := a.finance.ExportWorkspaceCSV(
-		r.Context(), workspaceID(r), currentUser(r).ID, service.ExportFilter(dateRange),
+		r.Context(), workspaceID(r), currentUser(r).ID, service.ExportFilter(filter),
 	)
 	if err != nil {
 		a.serviceError(w, err)

@@ -1,13 +1,15 @@
-import { AlertTriangle, Edit3, Share2, Trash2 } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Edit3, Share2, Trash2 } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { ShareSheet } from '@/components/share-sheet'
 import { Button, Dialog } from '@/components/ui'
 import { ApiError, api } from '@/lib/api-client'
 import { buildSafeTextSharePayload, type SharePayload } from '@/lib/share'
+import { copyTextToClipboard } from '@/lib/clipboard'
 
 export type RecordDetail = {
   label: string
   value: string
+  copyable?: boolean
 }
 
 type RecordActionDrawerProps = {
@@ -65,12 +67,14 @@ export function RecordActionDrawer({
   const [error, setError] = useState<string | null>(null)
   const [sharePayload, setSharePayload] = useState<SharePayload | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
+  const [copiedDetail, setCopiedDetail] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) return
     setConfirmingDelete(false)
     setBusy(null)
     setError(null)
+    setCopiedDetail(null)
   }, [open])
 
   const share = async () => {
@@ -126,7 +130,33 @@ export function RecordActionDrawer({
             {details.map((detail) => (
               <div key={detail.label}>
                 <dt>{detail.label}</dt>
-                <dd>{detail.value}</dd>
+                <dd>
+                  <span>{detail.value}</span>
+                  {detail.copyable ? (
+                    <button
+                      type="button"
+                      className="record-detail-copy"
+                      aria-label={`Copy ${detail.label.toLowerCase()}`}
+                      title={`Copy ${detail.label.toLowerCase()}`}
+                      onClick={() => {
+                        void copyTextToClipboard(detail.value).then((copied) => {
+                          if (copied) {
+                            setCopiedDetail(detail.label)
+                            setError(null)
+                          } else {
+                            setError(`Unable to copy ${detail.label.toLowerCase()}. Select it and copy manually.`)
+                          }
+                        })
+                      }}
+                    >
+                      {copiedDetail === detail.label ? (
+                        <Check aria-hidden="true" />
+                      ) : (
+                        <Copy aria-hidden="true" />
+                      )}
+                    </button>
+                  ) : null}
+                </dd>
               </div>
             ))}
           </dl>
