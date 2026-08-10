@@ -61,6 +61,8 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 				"account_history",
 				"category_reports",
 				"transaction_search",
+				"workspace_sequence_transaction_id_unique",
+				"workspace_transaction_id_lookup",
 				"workspace_vault_history",
 				"workspace_vault_account_history",
 				"workspace_vault_type_history",
@@ -68,6 +70,10 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 				"workspace_vault_contact_history",
 				"workspace_goal_history",
 			},
+		},
+		{
+			collection: "transaction_sequences",
+			indexes:    []string{"workspace_transaction_sequence_unique"},
 		},
 		{
 			collection: "vaults",
@@ -122,6 +128,10 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 		},
 		{collection: "contacts", indexes: []string{"workspace_contact_names", "workspace_contact_normalized_unique"}},
 		{collection: "saved_transaction_names", indexes: []string{"workspace_saved_name_unique"}},
+		{
+			collection: "transaction_categories",
+			indexes:    []string{"workspace_type_category_name_unique", "workspace_type_category_order"},
+		},
 		{
 			collection: "audit_events",
 			indexes:    []string{"workspace_audit", "workspace_audit_history"},

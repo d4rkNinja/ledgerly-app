@@ -7,7 +7,7 @@ Production-oriented Go 1.26.5 and MongoDB API for personal, family, and office f
 From the workspace root, start the API in one terminal:
 
 ```bash
-cd golang
+cd api
 cp .env.example .env
 docker compose up -d --wait
 set -a; . ./.env; set +a; go run ./cmd/api
@@ -16,7 +16,7 @@ set -a; . ./.env; set +a; go run ./cmd/api
 Then start the Vite client in a second terminal:
 
 ```bash
-cd frontend
+cd web
 npm install
 npm run dev
 ```
@@ -33,7 +33,7 @@ defaults cannot be enabled accidentally.
 Seed realistic development data (requires an explicit `APP_ENV=development`):
 
 ```bash
-cd golang
+cd api
 set -a; . ./.env; set +a; go run ./cmd/seed
 ```
 
@@ -92,6 +92,12 @@ All paths are under `/api/v1`. Protected routes require `Authorization: Bearer <
 | GET/POST | `/workspaces/{workspaceID}/vaults` | Visible vaults or create a vault |
 | GET/POST | `/workspaces/{workspaceID}/accounts` | Visible accounts or create one |
 | GET/POST | `/workspaces/{workspaceID}/transactions` | Filtered history or atomic mutation |
+| GET | `/workspaces/{workspaceID}/transaction-sequences` | Read expense, income, transfer, and split numbering settings |
+| PATCH | `/workspaces/{workspaceID}/transaction-sequences/{transactionType}` | Configure one transaction sequence safely |
+| GET/POST | `/workspaces/{workspaceID}/transaction-categories` | List or create configurable transaction categories |
+| PATCH/DELETE | `/workspaces/{workspaceID}/transaction-categories/{categoryID}` | Update, disable, replace, or delete a category safely |
+| POST | `/workspaces/{workspaceID}/transaction-categories/reorder` | Persist the complete category order for one transaction type |
+| GET | `/workspaces/{workspaceID}/export.csv` | Export the authorized, filtered transaction result as CSV |
 | GET | `/workspaces/{workspaceID}/bills` | Visible bills due today through the next 30 UTC calendar days |
 | GET/POST | `/workspaces/{workspaceID}/budgets` | Budgets |
 | GET/POST | `/workspaces/{workspaceID}/goals` | Goals |
@@ -108,7 +114,23 @@ All paths are under `/api/v1`. Protected routes require `Authorization: Bearer <
 | PATCH | `/notifications/{notificationID}/read` | Mark one owned notification as read |
 | PATCH | `/notifications/read-all` | Mark all current user's unread notifications as read |
 
-Transaction creation requires an `Idempotency-Key` header (8–128 characters). A retry with the same key and request resolves to the first committed response, including when the server supplied an omitted `occurredAt`. Pagination uses bounded `limit` and `skip`; transaction filters include `vaultId`, `accountId`, `type`, `category`, `from`, and `to`.
+Transaction creation requires an `Idempotency-Key` header (8–128 characters).
+A retry with the same key and request resolves to the first committed response,
+including when the server supplied an omitted `occurredAt`. Each workspace has
+independent numeric sequences for expense, income, transfer, and split entries.
+Automatic IDs default to `0001`; clients may explicitly request a unique manual
+numeric ID. Sequence allocation is atomic and does not reuse deleted IDs.
+
+Pagination uses bounded `limit` and `skip`. The transaction list and CSV export
+share filters for `transactionId`, `search`, `vaultId`, `accountId`, `contactId`,
+`type`, `category`, `merchant`, `minAmountMinor`, `maxAmountMinor`, `from`, and
+`to`. The dedicated transaction-ID filter is exact, while general search can
+match a safe partial numeric ID. Date-only `to` values are inclusive.
+
+Category definitions are scoped by workspace and transaction type. Defaults are
+seeded lazily as ordinary editable rows. Transactions retain a category-name
+snapshot, so disabling or replacing a category does not make historical records
+unreadable.
 
 Notification read mutations are bodyless. Marking one notification returns the
 updated notification object. Marking all returns
@@ -159,7 +181,11 @@ Role defaults are defined centrally in `internal/model/permissions.go`; a member
 
 ## Current boundaries
 
-The cohesive implemented slice covers authentication/session management, workspace tenancy, RBAC, private/shared vaults, accounts, atomic transactions/transfers, budgets, goals, invitations, expense review, notifications, audit, dashboard, search, reports, indexes, and development data.
+The cohesive implemented slice covers authentication/session management,
+workspace tenancy, RBAC, private/shared vaults, accounts, atomic
+transactions/transfers, configurable transaction sequences and categories,
+budgets, goals, invitations, expense review, notifications, audit, dashboard,
+search, filtered CSV export, indexes, and development data.
 
 Receipt object storage, email/SMS delivery, OAuth, password-reset delivery, recurring-payment execution, data-export workers, file malware scanning, push delivery, bank synchronisation, and multi-currency conversion require external providers and are intentionally not faked. Production deployments should use a multi-node Mongo replica set, an external distributed rate limiter, TLS termination, secret management, and background job infrastructure.
 

@@ -36,6 +36,7 @@ import { z } from 'zod'
 import { BottomSheet } from '@/components/motion/bottom-sheet'
 import { DatePicker } from '@/components/date-picker'
 import { ContactNamePicker } from '@/components/contact-name-picker'
+import { Checkbox } from '@/components/motion/checkbox'
 import {
   addDateOnlyDays,
   addDateOnlyMonths,
@@ -56,7 +57,10 @@ import { useApp } from '@/app/app-state'
 import { CurrencySelect } from '@/components/currency-select'
 import {
   categoriesForTransactionMode,
-  categoryForTransactionMode,
+  selectableTransactionCategoryNames,
+  transactionCategoryModeFor,
+  transactionSequencePreview,
+  type TransactionCategoryMode,
 } from '@/domain/transaction-categories'
 import {
   accounts as demoAccounts,
@@ -64,7 +68,7 @@ import {
   contacts as demoContacts,
   goals as demoGoals,
   savedTransactionNames as demoSavedTransactionNames,
-  transactions as demoTransactions,
+  transactions as demoTransactionsWithoutIds,
 } from '@/domain/demo-data'
 import type {
   Account,
@@ -77,16 +81,19 @@ import type {
   Transaction,
 	Contact,
 	SavedTransactionName,
+  WorkspaceMember,
 } from '@/domain/types'
 
 import { api, ApiError } from '@/lib/api-client'
 import { SPRING_PRESS } from '@/lib/ease'
-import {
-  downloadTransactionsCsv,
-} from '@/lib/download'
+import { downloadWorkspaceExport } from '@/lib/export'
 import { formatDate, formatMoney } from '@/lib/format'
 import { matchesTransactionSearch } from '@/lib/search'
 import { buildSafeTextSharePayload } from '@/lib/share'
+import {
+  validateTransactionSplits,
+  type TransactionSplitInput,
+} from '@/lib/transaction-splits'
 import {
   Select,
   SelectContent,
@@ -132,12 +139,28 @@ import {
 } from './data'
 import { buildDashboardModel } from './dashboard-model'
 import {
+  useTransactionCategories,
+  useTransactionSequences,
+} from '@/lib/transaction-settings'
+import {
   PeriodSelector,
   type DashboardPeriodMode,
   type DashboardPeriodValue,
 } from './period-selector'
 import { RecordActionDrawer } from './record-action-drawer'
 import { TransactionEditDialog } from './record-edit-dialogs'
+
+const demoTransactions: Transaction[] = demoTransactionsWithoutIds.map(
+  (transaction, index) => ({
+    ...transaction,
+    transactionId:
+      transaction.direction === 'credit'
+        ? '0001'
+        : String(index).padStart(4, '0'),
+    transactionIdScope:
+      transaction.direction === 'credit' ? 'income' : 'expense',
+  }),
+)
 
 const demoDashboard: Dashboard = {
   ...buildDashboardModel(
@@ -221,15 +244,17 @@ function transactionSubtitle(transaction: Transaction) {
   const createdAt = transaction.createdAt
     ? 'Created ' + formatDate(transaction.createdAt)
     : 'Creation time unavailable'
-  return (
-    transaction.category +
-    ' · ' +
-    formatDate(transaction.occurredAt) +
-    ' · ' +
-    creator +
-    ' · ' +
-    createdAt
-  )
+  return [
+    transaction.transactionId
+      ? `ID ${transaction.transactionId}`
+      : undefined,
+    transaction.category,
+    formatDate(transaction.occurredAt),
+    creator,
+    createdAt,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function comparisonText(change: DashboardMetricChange | undefined, currency: string) {
@@ -1740,6 +1765,7 @@ export function HomePage() {
         description="Review this entry before editing, sharing, or deleting it."
         details={selectedRecentTransaction ? [
           { label: 'Type', value: friendlyLabel(selectedRecentTransaction.rawType ?? selectedRecentTransaction.direction) },
+          ...(selectedRecentTransaction.transactionId ? [{ label: 'Transaction ID', value: selectedRecentTransaction.transactionId, copyable: true }] : []),
           { label: 'Amount', value: formatMoney(selectedRecentTransaction.amount) },
           { label: 'Date', value: formatDate(selectedRecentTransaction.occurredAt) },
           { label: 'Category', value: selectedRecentTransaction.category || 'Uncategorised' },
@@ -1764,7 +1790,7 @@ export function HomePage() {
           selectedRecentTransaction && demoMode
             ? buildSafeTextSharePayload({
                 title: 'Transaction summary',
-                text: `${selectedRecentTransaction.category || 'Transaction'}: ${formatMoney(selectedRecentTransaction.amount)} on ${formatDate(selectedRecentTransaction.occurredAt)}`,
+                text: `${selectedRecentTransaction.transactionId ? `ID ${selectedRecentTransaction.transactionId} · ` : ''}${selectedRecentTransaction.category || 'Transaction'}: ${formatMoney(selectedRecentTransaction.amount)} on ${formatDate(selectedRecentTransaction.occurredAt)}`,
               })
             : undefined
         }
@@ -1795,6 +1821,8 @@ const transactionSchema = z.object({
   note: z.string().max(240, 'Keep the note under 240 characters').optional(),
 	description: z.string().max(2000, 'Keep the description under 2000 characters').optional(),
 	contactId: z.string().optional(),
+  transactionId: z.string().trim().max(18, 'Keep the transaction ID under 19 digits'),
+  autoGenerateTransactionId: z.boolean(),
 })
 
 function selectedTransactionDateToUtc(value: string) {
@@ -1804,8 +1832,8 @@ function selectedTransactionDateToUtc(value: string) {
   return toUtcDateOnly(value)
 }
 
-type AddMode = 'expense' | 'income' | 'transfer' | 'split'
-type LiveTransactionMode = Exclude<AddMode, 'split'>
+type AddMode = TransactionCategoryMode
+type LiveTransactionMode = AddMode
 
 export function TransactionDialog({
   open,
@@ -1833,8 +1861,9 @@ export function TransactionDialog({
       (account) =>
         account.balance.currency.toUpperCase() === preferredCurrency,
     )?.id ?? availableAccounts[0]?.id ?? ''
-  const initialCategory =
-    categoryForTransactionMode(initialMode, '') || 'Transfer'
+  const initialCategory = demoMode
+    ? categoriesForTransactionMode(initialMode)[0] ?? ''
+    : ''
   const [values, setValues] = useState({
     merchant: '',
     amount: '',
@@ -1844,9 +1873,16 @@ export function TransactionDialog({
     note: '',
 		description: '',
 		contactId: '',
+    transactionId: '',
+    autoGenerateTransactionId: true,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [splitShares, setSplitShares] = useState<Record<string, string>>({})
+  const [splitShareErrors, setSplitShareErrors] = useState<
+    Record<string, string>
+  >({})
+  const [splitShareError, setSplitShareError] = useState('')
   const [submitLocked, setSubmitLocked] = useState(false)
 	const [showDescription, setShowDescription] = useState(false)
   const submitLock = useRef(false)
@@ -1859,22 +1895,29 @@ export function TransactionDialog({
       setValues({
         merchant: '',
         amount: '',
-        category: categoryForTransactionMode(initialMode, '') || 'Transfer',
+        category: demoMode
+          ? categoriesForTransactionMode(initialMode)[0] ?? ''
+          : '',
         accountId: initialAccountId,
         occurredAt: todayDateOnly(),
         note: '',
 		description: '',
 		contactId: '',
+        transactionId: '',
+        autoGenerateTransactionId: true,
       })
       setErrors({})
       setFeedback(null)
+      setSplitShares({})
+      setSplitShareErrors({})
+      setSplitShareError('')
       submitLock.current = false
       setSubmitLocked(false)
     } else if (closeTimer.current !== null) {
       window.clearTimeout(closeTimer.current)
       closeTimer.current = null
     }
-  }, [initialAccountId, initialMode, open, preferredCurrency])
+  }, [demoMode, initialAccountId, initialMode, open, preferredCurrency])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -1902,17 +1945,88 @@ export function TransactionDialog({
   const selectedCurrency = selectedAccount?.balance.currency ?? preferredCurrency
 	const contactsQuery = useQuery({ queryKey: ['contacts', workspace.id], queryFn: () => api.get<Contact[]>(`/workspaces/${workspace.id}/contacts`), enabled: open && !demoMode })
 	const savedNamesQuery = useQuery({ queryKey: ['saved-transaction-names', workspace.id], queryFn: () => api.get<SavedTransactionName[]>(`/workspaces/${workspace.id}/saved-transaction-names`), enabled: open && !demoMode })
+	const membersQuery = useQuery({
+	  queryKey: ['workspace-members', workspace.id],
+	  queryFn: () =>
+	    api.get<WorkspaceMember[]>(
+	      `/workspaces/${encodeURIComponent(workspace.id)}/members`,
+	    ),
+	  enabled: open && !demoMode && mode === 'split',
+	  retry: 1,
+	})
 	const contacts = contactsQuery.data ?? []
 	const savedNames = savedNamesQuery.data ?? []
+  const categoriesQuery = useTransactionCategories(mode, open)
+  const sequencesQuery = useTransactionSequences(open)
+  const categoryNames = useMemo(
+    () =>
+      demoMode
+        ? [...categoriesForTransactionMode(mode)]
+        : selectableTransactionCategoryNames(categoriesQuery.data ?? []),
+    [categoriesQuery.data, demoMode, mode],
+  )
+  const modeSequence = sequencesQuery.data?.find(
+    (setting) => setting.transactionType === mode,
+  )
+  const activeSplitMembers = useMemo(() => {
+    const seen = new Set<string>()
+    return (Array.isArray(membersQuery.data) ? membersQuery.data : []).filter(
+      (member) => {
+        const email = member.email.trim().toLocaleLowerCase()
+        if (member.status !== 'active' || !email || seen.has(email)) return false
+        seen.add(email)
+        return true
+      },
+    )
+  }, [membersQuery.data])
+
+  useEffect(() => {
+    if (!open || categoriesQuery.isLoading) return
+    setValues((current) =>
+      categoryNames.includes(current.category)
+        ? current
+        : { ...current, category: categoryNames[0] ?? '' },
+    )
+  }, [categoryNames, categoriesQuery.isLoading, mode, open])
+
+  useEffect(() => {
+    if (!open || !modeSequence) return
+    setValues((current) => ({
+      ...current,
+      autoGenerateTransactionId: modeSequence.autoGenerate,
+      transactionId: '',
+    }))
+  }, [mode, modeSequence, open])
 
   const changeMode = (nextMode: AddMode) => {
     setMode(nextMode)
     setValues((current) => ({
       ...current,
-      category: categoryForTransactionMode(nextMode, current.category) || 'Transfer',
+      category: demoMode
+        ? categoriesForTransactionMode(nextMode)[0] ?? ''
+        : '',
+      transactionId: '',
+      autoGenerateTransactionId:
+        sequencesQuery.data?.find(
+          (setting) => setting.transactionType === nextMode,
+        )?.autoGenerate ?? true,
     }))
     setErrors({})
     setFeedback(null)
+    setSplitShares({})
+    setSplitShareErrors({})
+    setSplitShareError('')
+  }
+
+  const updateSplitShare = (memberEmail: string, amountMajor: string) => {
+    setSplitShares((current) => ({ ...current, [memberEmail]: amountMajor }))
+    setSplitShareErrors((current) => {
+      if (!current[memberEmail]) return current
+      const next = { ...current }
+      delete next[memberEmail]
+      return next
+    })
+    setSplitShareError('')
   }
 
   const mutation = useMutation({
@@ -1920,10 +2034,12 @@ export function TransactionDialog({
       body,
       transactionType,
       idempotencyKey,
+      splits,
     }: {
       body: typeof values
       transactionType: LiveTransactionMode
       idempotencyKey: string
+      splits: TransactionSplitInput[]
     }) => {
       const sourceAccount = availableAccounts.find(
         (account) => account.id === body.accountId,
@@ -1941,8 +2057,13 @@ export function TransactionDialog({
           accountId: body.accountId,
           notes: body.note.trim() || undefined,
 		  description: body.description.trim() || undefined,
-		  contactId: body.contactId || undefined,
+          contactId: body.contactId || undefined,
+          autoGenerateTransactionId: body.autoGenerateTransactionId,
+          transactionId: body.autoGenerateTransactionId
+            ? undefined
+            : body.transactionId.trim(),
           type: transactionType,
+          splits: transactionType === 'split' ? splits : undefined,
           occurredAt: selectedTransactionDateToUtc(body.occurredAt),
         },
         {
@@ -1950,7 +2071,7 @@ export function TransactionDialog({
         },
       )
     },
-    onSuccess: () => {
+    onSuccess: (transaction) => {
       void Promise.all([
         queryClient.invalidateQueries({
           queryKey: ['transactions', workspace.id],
@@ -1969,7 +2090,12 @@ export function TransactionDialog({
         }),
       ])
       if (!mounted.current) return
-      setFeedback({ tone: 'success', message: 'Transaction saved.' })
+      setFeedback({
+        tone: 'success',
+        message: transaction.transactionId
+          ? `Transaction ${transaction.transactionId} saved.`
+          : 'Transaction saved.',
+      })
       closeTimer.current = window.setTimeout(onClose, 700)
     },
     onError: (error) => {
@@ -1977,6 +2103,15 @@ export function TransactionDialog({
       submitLock.current = false
       setSubmitLocked(false)
 	  setShowDescription(false)
+      if (error instanceof ApiError && error.fields) {
+        setErrors((current) => ({
+          ...current,
+          ...error.fields,
+          transactionId:
+            error.fields?.transactionId ?? current.transactionId,
+        }))
+        if (error.fields.splits) setSplitShareError(error.fields.splits)
+      }
       setFeedback({
         tone: 'error',
         message:
@@ -1993,12 +2128,16 @@ export function TransactionDialog({
     if (submitLock.current || mutation.isPending) return
     setErrors({})
     setFeedback(null)
-    if (!demoMode && mode === 'split') {
-      setFeedback({
-        tone: 'info',
-        message:
-          'Live split expenses need a workspace member directory and per-person shares. Choose Expense for now; no request was sent.',
+    setSplitShareErrors({})
+    setSplitShareError('')
+    if (
+      !values.autoGenerateTransactionId &&
+      !/^\d{1,18}$/.test(values.transactionId.trim())
+    ) {
+      setErrors({
+        transactionId: 'Enter a transaction ID containing 1 to 18 digits.',
       })
+      focusFirstInvalidField(form)
       return
     }
     const result = transactionSchema.safeParse(values)
@@ -2021,6 +2160,43 @@ export function TransactionDialog({
       setErrors({ accountId: 'Choose a valid source account.' })
       focusFirstInvalidField(form)
       return
+    }
+    let validatedSplits: TransactionSplitInput[] = []
+    if (!demoMode && mode === 'split') {
+      if (membersQuery.isLoading || membersQuery.isError) {
+        setSplitShareError(
+          membersQuery.isError
+            ? 'Workspace members could not be loaded. Try again.'
+            : 'Workspace members are still loading.',
+        )
+        return
+      }
+      if (activeSplitMembers.length === 0) {
+        setSplitShareError(
+          'At least one active workspace member is required for a split.',
+        )
+        return
+      }
+      const splitValidation = validateTransactionSplits(
+        activeSplitMembers.map((member) => ({
+          memberEmail: member.email,
+          amountMajor: splitShares[member.email] ?? '',
+        })),
+        Math.round(result.data.amount * 100),
+      )
+      if (!splitValidation.ok) {
+        setSplitShareErrors(splitValidation.fieldErrors)
+        setSplitShareError(
+          splitValidation.reason === 'empty'
+            ? 'Enter a positive share for at least one active member.'
+            : splitValidation.reason === 'invalid'
+              ? 'Fix the highlighted member shares.'
+              : `Shares total ${formatMoney({ amountMinor: splitValidation.allocatedMinor, currency: sourceAccount.balance.currency })}; they must equal ${formatMoney({ amountMinor: Math.round(result.data.amount * 100), currency: sourceAccount.balance.currency })}.`,
+        )
+        form.querySelector<HTMLInputElement>('[data-split-share]')?.focus()
+        return
+      }
+      validatedSplits = splitValidation.splits
     }
     if (mode === 'transfer') {
       const destinationAccount = availableAccounts.find(
@@ -2052,6 +2228,14 @@ export function TransactionDialog({
     if (demoMode) {
       onDemoAdded({
         id: `demo-${Date.now()}`,
+        transactionId: values.autoGenerateTransactionId
+          ? modeSequence?.preview ??
+            transactionSequencePreview(
+              modeSequence?.nextNumber ?? 1,
+              modeSequence?.minimumDigits ?? 4,
+            )
+          : values.transactionId.trim(),
+        transactionIdScope: mode,
         merchant:
           mode === 'transfer'
             ? `Transfer to ${
@@ -2059,7 +2243,7 @@ export function TransactionDialog({
                   ?.name ?? 'account'
               }`
             : values.merchant.trim(),
-        category: mode === 'split' ? 'Split expense' : values.category,
+        category: values.category,
         occurredAt: selectedTransactionDateToUtc(values.occurredAt),
         amount: {
           amountMinor: Math.round(result.data.amount * 100),
@@ -2078,18 +2262,11 @@ export function TransactionDialog({
       closeTimer.current = window.setTimeout(onClose, 700)
       return
     }
-    if (mode === 'split') {
-      setFeedback({
-        tone: 'info',
-        message:
-          'Live split entry is unavailable. No transaction request was sent.',
-      })
-      return
-    }
     mutation.mutate({
       body: values,
       transactionType: mode,
       idempotencyKey: crypto.randomUUID(),
+      splits: validatedSplits,
     })
   }
 
@@ -2109,7 +2286,7 @@ export function TransactionDialog({
         demoMode
           ? 'This change stays in your local demo session.'
           : mode === 'split'
-            ? 'Live split entry is unavailable until workspace members and shares can be selected safely.'
+            ? 'Assign the full amount across active workspace members.'
             : 'Review the details before saving.'
       }
       onClose={submitLocked ? () => undefined : onClose}
@@ -2187,13 +2364,63 @@ export function TransactionDialog({
             Activate an account before recording a transaction.
           </InfoNotice>
         ) : null}
-        {!demoMode && mode === 'split' ? (
-          <InfoNotice>
-            Live splits need a real member directory and exact per-person
-            shares. Choose Expense to record the full amount now. No split
-            request will be sent.
-          </InfoNotice>
-        ) : null}
+        <div className="transaction-id-entry">
+          <Field
+            label="Transaction ID"
+            error={errors.transactionId}
+            hint={
+              values.autoGenerateTransactionId
+                ? 'The current sequence assigns this numeric ID when saved.'
+                : 'Enter 1 to 18 digits. IDs must be unique within this transaction type.'
+            }
+          >
+            <input
+              inputMode="numeric"
+              maxLength={18}
+              value={
+                values.autoGenerateTransactionId
+                  ? modeSequence?.preview ?? ''
+                  : values.transactionId
+              }
+              placeholder={
+                values.autoGenerateTransactionId
+                  ? 'Assigned when saved'
+                  : '0001'
+              }
+              disabled={values.autoGenerateTransactionId}
+              readOnly={values.autoGenerateTransactionId}
+              onChange={(event) => {
+                clearFieldError(setErrors, 'transactionId')
+                setValues((current) => ({
+                  ...current,
+                  transactionId: event.target.value.replace(/\D/g, '').slice(0, 18),
+                }))
+              }}
+            />
+          </Field>
+          <div className="transaction-id-auto-toggle">
+            <Checkbox
+              checked={values.autoGenerateTransactionId}
+              onCheckedChange={(autoGenerateTransactionId) => {
+                clearFieldError(setErrors, 'transactionId')
+                setValues((current) => ({
+                  ...current,
+                  autoGenerateTransactionId,
+                  transactionId: autoGenerateTransactionId
+                    ? ''
+                    : current.transactionId,
+                }))
+              }}
+              aria-label="Auto Generate transaction ID"
+            />
+            <span>
+              <strong>Auto Generate</strong>
+              <small>
+                Initial setting for {friendlyLabel(mode).toLowerCase()} transactions
+              </small>
+            </span>
+          </div>
+        </div>
         <Field
           label={mode === 'transfer' ? 'Destination' : 'Name or description'}
           error={errors.merchant}
@@ -2273,6 +2500,7 @@ export function TransactionDialog({
               value={selectedCurrency}
               onChange={(currency) => {
                 clearFieldError(setErrors, 'amount')
+                setSplitShareError('')
                 const matchingAccount = availableAccounts.find(
                   (account) => account.balance.currency === currency,
                 )
@@ -2292,6 +2520,7 @@ export function TransactionDialog({
               onChange={(event) =>
                 {
                   clearFieldError(setErrors, 'amount')
+                  setSplitShareError('')
                   setValues((current) => ({
                     ...current,
                     amount: event.target.value,
@@ -2303,6 +2532,86 @@ export function TransactionDialog({
             />
           </div>
         </Field>
+        {!demoMode && mode === 'split' ? (
+          <fieldset
+            className="transaction-split-editor"
+            aria-describedby="transaction-split-editor-hint"
+          >
+            <legend>Member shares</legend>
+            <p id="transaction-split-editor-hint">
+              Enter a share for each participant. Shares must be positive and
+              total the transaction amount exactly.
+            </p>
+            {membersQuery.isLoading ? (
+              <p className="settings-inline-status" role="status">
+                Loading active members…
+              </p>
+            ) : membersQuery.isError ? (
+              <div className="transaction-split-query-error" role="alert">
+                <span>Workspace members could not be loaded.</span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void membersQuery.refetch()}
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : activeSplitMembers.length ? (
+              <div
+                className="transaction-split-share-list"
+                aria-label="Active member shares"
+              >
+                {activeSplitMembers.map((member, index) => {
+                  const inputId = `transaction-split-share-${index}`
+                  const errorId = `${inputId}-error`
+                  const shareError = splitShareErrors[member.email]
+                  return (
+                    <div className="transaction-split-share-row" key={member.email}>
+                      <label htmlFor={inputId}>
+                        <span>
+                          <strong>{member.name || member.email}</strong>
+                          <small>{member.email}</small>
+                        </span>
+                        <span className="transaction-split-share-input">
+                          <span aria-hidden="true">{selectedCurrency}</span>
+                          <input
+                            id={inputId}
+                            data-split-share
+                            inputMode="decimal"
+                            maxLength={20}
+                            value={splitShares[member.email] ?? ''}
+                            placeholder="0.00"
+                            aria-label={`Share for ${member.name || member.email}`}
+                            aria-invalid={Boolean(shareError)}
+                            aria-describedby={shareError ? errorId : undefined}
+                            onChange={(event) =>
+                              updateSplitShare(member.email, event.target.value)
+                            }
+                          />
+                        </span>
+                      </label>
+                      {shareError ? (
+                        <small id={errorId} className="field-error" role="alert">
+                          {shareError}
+                        </small>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="field-error" role="alert">
+                At least one active workspace member is required for a split.
+              </p>
+            )}
+            {splitShareError ? (
+              <p className="field-error" role="alert">
+                {splitShareError}
+              </p>
+            ) : null}
+          </fieldset>
+        ) : null}
         <DatePicker
           label="Transaction date"
           value={values.occurredAt}
@@ -2341,20 +2650,15 @@ export function TransactionDialog({
             </Select>
           </Field>
           <Field
-            label={mode === 'split' ? 'Split with' : 'Category'}
+            label="Category"
             error={errors.category}
           >
             <Select
-              value={
-                !demoMode && mode === 'split'
-                  ? '__split-category__'
-                  : values.category
-              }
-              disabled={!demoMode && mode === 'split'}
-              aria-describedby={
-                !demoMode && mode === 'split'
-                  ? 'live-split-member-requirement'
-                  : undefined
+              value={values.category}
+              disabled={
+                (!demoMode && categoriesQuery.isLoading) ||
+                (!demoMode && categoriesQuery.isError) ||
+                !categoryNames.length
               }
               onValueChange={(value) =>
                 {
@@ -2367,27 +2671,36 @@ export function TransactionDialog({
                 <SelectValue placeholder="Choose category" />
               </SelectTrigger>
               <SelectContent>
-                {!demoMode && mode === 'split' ? (
-                  <SelectItem value="__split-category__" disabled>
-                    Member directory required
+                {!demoMode && categoriesQuery.isLoading ? (
+                  <SelectItem value="__loading-categories__" disabled>
+                    Loading categories…
                   </SelectItem>
-                ) : (mode === 'transfer'
-                  ? ['Transfer']
-                  : categoriesForTransactionMode(mode)
-                ).map((category) => (
+                ) : !demoMode && categoriesQuery.isError ? (
+                  <SelectItem value="__category-error__" disabled>
+                    Categories unavailable
+                  </SelectItem>
+                ) : categoryNames.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {!demoMode && mode === 'split' ? (
-              <span className="sr-only" id="live-split-member-requirement">
-                Live split entry is unavailable. No request will be sent.
-              </span>
-            ) : null}
           </Field>
         </div>
+        {!demoMode && categoriesQuery.isError ? (
+          <p className="field-error" role="alert">
+            Categories could not be loaded. Close this dialog and try again.
+          </p>
+        ) : null}
+        {!demoMode &&
+        !categoriesQuery.isLoading &&
+        !categoriesQuery.isError &&
+        !categoryNames.length ? (
+          <InfoNotice>
+            Add an active {friendlyLabel(mode).toLowerCase()} category in Settings before saving.
+          </InfoNotice>
+        ) : null}
         <Field label="Note" error={errors.note}>
           <textarea
             value={values.note}
@@ -2417,7 +2730,14 @@ export function TransactionDialog({
             disabled={
               submitLocked ||
               !availableAccounts.length ||
-              (!demoMode && mode === 'split')
+              (!demoMode && categoriesQuery.isLoading) ||
+              (!demoMode && categoriesQuery.isError) ||
+              !categoryNames.length ||
+              (!demoMode &&
+                mode === 'split' &&
+                (membersQuery.isLoading ||
+                  membersQuery.isError ||
+                  !activeSplitMembers.length))
             }
           >
             {demoMode ? 'Add to demo' : 'Save'}
@@ -2428,8 +2748,61 @@ export function TransactionDialog({
   )
 }
 
+function transactionFilterQueryFromSearchParams(
+  searchParams: URLSearchParams,
+) {
+  const query = new URLSearchParams()
+  const from = validDateOrTimestampKey(searchParams.get('from'))
+  const to = validDateOrTimestampKey(searchParams.get('to'))
+  const selectedDateRange = cashflowDayRange(searchParams.get('date'))
+  if (from && to && from <= to) {
+    const range = transactionApiDateRange(from, to)
+    query.set('from', range.from)
+    query.set('to', range.to)
+  } else if (selectedDateRange) {
+    query.set('from', selectedDateRange.from)
+    query.set('to', selectedDateRange.to)
+  }
+
+  for (const key of [
+    'transactionId',
+    'type',
+    'category',
+    'accountId',
+    'contactId',
+    'merchant',
+    'search',
+    'minAmountMinor',
+    'maxAmountMinor',
+  ]) {
+    const value = searchParams.get(key)?.trim()
+    if (value) query.set(key, value)
+  }
+  return query
+}
+
+function amountMinorFromMajorFilter(value: string) {
+  const normalized = value.trim()
+  if (!normalized) return null
+  if (!/^\d+(?:\.\d{0,2})?$/.test(normalized)) return undefined
+  const [major, fraction = ''] = normalized.split('.')
+  const amountMinor = Number(major) * 100 + Number(fraction.padEnd(2, '0'))
+  return Number.isSafeInteger(amountMinor) && amountMinor >= 0
+    ? amountMinor
+    : undefined
+}
+
+function majorFilterFromMinor(value: string) {
+  if (!/^\d+$/.test(value)) return ''
+  const amountMinor = Number(value)
+  if (!Number.isSafeInteger(amountMinor)) return ''
+  const major = Math.floor(amountMinor / 100)
+  const fraction = String(amountMinor % 100).padStart(2, '0')
+  return fraction === '00' ? String(major) : `${major}.${fraction}`
+}
+
 export function TransactionsPage() {
-  const { demoMode, privacyMode, workspace } = useApp()
+  const { demoMode, workspace } = useApp()
   const queryClient = useQueryClient()
   const reduce = useReducedMotion()
   const location = useLocation()
@@ -2446,22 +2819,19 @@ export function TransactionsPage() {
   const selectedContactId = searchParams.get('contactId')?.trim() || ''
   const selectedMerchant = searchParams.get('merchant')?.trim() || ''
   const selectedAccountId = searchParams.get('accountId')?.trim() || ''
+  const selectedTransactionIdFilter =
+    searchParams.get('transactionId')?.trim() || ''
+  const selectedMinAmountMinor =
+    searchParams.get('minAmountMinor')?.trim() || ''
+  const selectedMaxAmountMinor =
+    searchParams.get('maxAmountMinor')?.trim() || ''
+  const search = searchParams.get('search')?.trim() || ''
+  const activeTransactionQuery = transactionFilterQueryFromSearchParams(
+    searchParams,
+  )
   const transactionQueryPath = (() => {
-    const query = new URLSearchParams()
-    if (selectedFilterRange) {
-      const range = transactionApiDateRange(selectedFilterRange.from, selectedFilterRange.to)
-      query.set('from', range.from)
-      query.set('to', range.to)
-    } else if (selectedDateRange) {
-      query.set('from', selectedDateRange.from)
-      query.set('to', selectedDateRange.to)
-    }
-    if (selectedCategory) query.set('category', selectedCategory)
-    if (selectedType) query.set('type', selectedType)
-    if (selectedContactId) query.set('contactId', selectedContactId)
-    if (selectedMerchant) query.set('merchant', selectedMerchant)
-    if (selectedAccountId) query.set('accountId', selectedAccountId)
-    if (query.size === 0) return '/transactions'
+    if (activeTransactionQuery.size === 0) return '/transactions'
+    const query = new URLSearchParams(activeTransactionQuery)
     if (!selectedFilterRange) query.set('limit', '100')
     return `/transactions?${query.toString()}`
   })()
@@ -2485,17 +2855,59 @@ export function TransactionsPage() {
     '/saved-transaction-names',
     demoSavedTransactionNames,
   )
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<
-    'all' | 'credit' | 'debit' | 'pending'
-  >('all')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filterTransactionId, setFilterTransactionId] = useState(
+    selectedTransactionIdFilter,
+  )
+  const [filterType, setFilterType] = useState(selectedType)
+  const [filterCategory, setFilterCategory] = useState(selectedCategory)
+  const [filterAccountId, setFilterAccountId] = useState(selectedAccountId)
+  const [filterContactId, setFilterContactId] = useState(selectedContactId)
+  const [filterMinAmount, setFilterMinAmount] = useState(
+    majorFilterFromMinor(selectedMinAmountMinor),
+  )
+  const [filterMaxAmount, setFilterMaxAmount] = useState(
+    majorFilterFromMinor(selectedMaxAmountMinor),
+  )
   const [filterFrom, setFilterFrom] = useState(rangeFrom ?? '')
   const [filterTo, setFilterTo] = useState(rangeTo ?? '')
   const [dateFilterError, setDateFilterError] = useState('')
+  const [amountFilterError, setAmountFilterError] = useState('')
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [exportFeedback, setExportFeedback] = useState('')
+  const exportMutation = useMutation({
+    mutationFn: () =>
+      downloadWorkspaceExport(workspace.id, activeTransactionQuery),
+    onMutate: () => setExportFeedback(''),
+    onSuccess: (filename) => {
+      setExportFeedback(`${filename} downloaded with the active filters.`)
+    },
+    onError: () => setExportFeedback(''),
+  })
+
+  useEffect(() => {
+    setFilterTransactionId(selectedTransactionIdFilter)
+    setFilterType(selectedType)
+    setFilterCategory(selectedCategory)
+    setFilterAccountId(selectedAccountId)
+    setFilterContactId(selectedContactId)
+    setFilterMinAmount(majorFilterFromMinor(selectedMinAmountMinor))
+    setFilterMaxAmount(majorFilterFromMinor(selectedMaxAmountMinor))
+    setFilterFrom(rangeFrom ?? selectedDateRange?.period ?? '')
+    setFilterTo(rangeTo ?? selectedDateRange?.period ?? '')
+  }, [
+    rangeFrom,
+    rangeTo,
+    selectedAccountId,
+    selectedCategory,
+    selectedContactId,
+    selectedDateRange?.period,
+    selectedMaxAmountMinor,
+    selectedMinAmountMinor,
+    selectedTransactionIdFilter,
+    selectedType,
+  ])
   const canCreateTransactions = hasWorkspacePermission(
     demoMode,
     workspace.permissions,
@@ -2579,26 +2991,45 @@ export function TransactionsPage() {
     : selectedDateRange
       ? items.filter((item) => transactionDay(item) === selectedDateRange.period)
       : items
+  const activeMinAmountMinor = /^\d+$/.test(selectedMinAmountMinor)
+    ? Number(selectedMinAmountMinor)
+    : null
+  const activeMaxAmountMinor = /^\d+$/.test(selectedMaxAmountMinor)
+    ? Number(selectedMaxAmountMinor)
+    : null
   const filtered = dateFilteredItems.filter((item) => {
     const matchesSearch = matchesTransactionSearch(item, search)
-    const matchesFilter =
-      filter === 'all' ||
-      (filter === 'pending'
-        ? item.status === 'pending'
-        : item.direction === filter)
+    const matchesTransactionId =
+      !selectedTransactionIdFilter ||
+      item.transactionId === selectedTransactionIdFilter
     const matchesCategory = !selectedCategory || item.category === selectedCategory
-    const matchesType = !selectedType || item.rawType === selectedType
+    const matchesType =
+      !selectedType || transactionCategoryModeFor(item) === selectedType
     const matchesContact = !selectedContactId || item.contactId === selectedContactId
     const matchesMerchant = !selectedMerchant || item.merchant === selectedMerchant
     const matchesAccount = !selectedAccountId || item.accountId === selectedAccountId
-    return matchesSearch && matchesFilter && matchesCategory && matchesType && matchesContact && matchesMerchant && matchesAccount
+    const matchesMinimumAmount =
+      activeMinAmountMinor === null ||
+      item.amount.amountMinor >= activeMinAmountMinor
+    const matchesMaximumAmount =
+      activeMaxAmountMinor === null ||
+      item.amount.amountMinor <= activeMaxAmountMinor
+    return matchesSearch && matchesTransactionId && matchesCategory && matchesType && matchesContact && matchesMerchant && matchesAccount && matchesMinimumAmount && matchesMaximumAmount
   })
   const canShareTransactions = hasWorkspacePermission(
     demoMode,
     workspace.permissions,
     'export_data',
   )
-  const clearDateFilter = () => {
+  const canExportTransactions = !demoMode && canShareTransactions
+  const updateSearch = (value: string) => {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    const normalized = value.trim()
+    if (normalized) nextSearchParams.set('search', normalized)
+    else nextSearchParams.delete('search')
+    setSearchParams(nextSearchParams, { replace: true })
+  }
+  const clearFilters = () => {
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.delete('date')
     nextSearchParams.delete('from')
@@ -2608,35 +3039,88 @@ export function TransactionsPage() {
     nextSearchParams.delete('contactId')
     nextSearchParams.delete('merchant')
     nextSearchParams.delete('accountId')
+    nextSearchParams.delete('transactionId')
+    nextSearchParams.delete('minAmountMinor')
+    nextSearchParams.delete('maxAmountMinor')
     setSearchParams(nextSearchParams)
+    setFilterTransactionId('')
+    setFilterType('')
+    setFilterCategory('')
+    setFilterAccountId('')
+    setFilterContactId('')
+    setFilterMinAmount('')
+    setFilterMaxAmount('')
     setFilterFrom('')
     setFilterTo('')
     setDateFilterError('')
+    setAmountFilterError('')
   }
   const toggleFilters = () => {
     setFiltersOpen((open) => {
       const next = !open
       if (next) {
-        setFilterFrom(rangeFrom ?? selectedDateRange?.period ?? '')
-        setFilterTo(rangeTo ?? selectedDateRange?.period ?? '')
         setDateFilterError('')
+        setAmountFilterError('')
       }
       return next
     })
   }
-  const applyDateFilter = () => {
-    if (!validDateKey(filterFrom) || !validDateKey(filterTo)) {
+  const applyFilters = () => {
+    const minAmountMinor = amountMinorFromMajorFilter(filterMinAmount)
+    const maxAmountMinor = amountMinorFromMajorFilter(filterMaxAmount)
+    if (minAmountMinor === undefined || maxAmountMinor === undefined) {
+      setAmountFilterError(
+        'Enter non-negative amounts with no more than two decimal places.',
+      )
+      return
+    }
+    if (
+      minAmountMinor !== null &&
+      maxAmountMinor !== null &&
+      minAmountMinor > maxAmountMinor
+    ) {
+      setAmountFilterError('Maximum amount must be at least the minimum amount.')
+      return
+    }
+    setAmountFilterError('')
+    if (
+      (filterFrom || filterTo) &&
+      (!validDateKey(filterFrom) || !validDateKey(filterTo))
+    ) {
       setDateFilterError('Choose valid From and To dates.')
       return
     }
-    if (filterFrom > filterTo) {
+    if (filterFrom && filterTo && filterFrom > filterTo) {
       setDateFilterError('The To date must be on or after the From date.')
       return
     }
     const nextSearchParams = new URLSearchParams(searchParams)
     nextSearchParams.delete('date')
-    nextSearchParams.set('from', filterFrom)
-    nextSearchParams.set('to', filterTo)
+    if (filterFrom && filterTo) {
+      nextSearchParams.set('from', filterFrom)
+      nextSearchParams.set('to', filterTo)
+    } else {
+      nextSearchParams.delete('from')
+      nextSearchParams.delete('to')
+    }
+    const setOrDelete = (key: string, value: string) => {
+      const normalized = value.trim()
+      if (normalized) nextSearchParams.set(key, normalized)
+      else nextSearchParams.delete(key)
+    }
+    setOrDelete('transactionId', filterTransactionId)
+    setOrDelete('type', filterType)
+    setOrDelete('category', filterCategory)
+    setOrDelete('accountId', filterAccountId)
+    setOrDelete('contactId', filterContactId)
+    setOrDelete(
+      'minAmountMinor',
+      minAmountMinor === null ? '' : String(minAmountMinor),
+    )
+    setOrDelete(
+      'maxAmountMinor',
+      maxAmountMinor === null ? '' : String(maxAmountMinor),
+    )
     setSearchParams(nextSearchParams)
     setDateFilterError('')
     setFiltersOpen(false)
@@ -2667,7 +3151,11 @@ export function TransactionsPage() {
         description="Every movement, with context."
         actions={
           canCreateTransactions ? (
-          <Button onClick={() => setSearchParams({ add: 'expense' })}>
+          <Button onClick={() => {
+            const next = new URLSearchParams(searchParams)
+            next.set('add', 'expense')
+            setSearchParams(next)
+          }}>
             <Plus aria-hidden="true" />
             Add transaction
           </Button>
@@ -2680,7 +3168,7 @@ export function TransactionsPage() {
           transactions. Existing entries remain available to review.
         </InfoNotice>
       ) : null}
-      {selectedFilterRange || selectedDateRange || selectedCategory || selectedType || selectedContactId || selectedMerchant || selectedAccountId ? (
+      {selectedFilterRange || selectedDateRange || selectedCategory || selectedType || selectedContactId || selectedMerchant || selectedAccountId || selectedTransactionIdFilter || selectedMinAmountMinor || selectedMaxAmountMinor ? (
         <div className="transaction-date-filter" role="status">
           <span>
             {selectedFilterRange
@@ -2689,11 +3177,20 @@ export function TransactionsPage() {
                 ? `Showing entries for ${formatDate(`${selectedDateRange.period}T12:00:00.000Z`)}`
                 : 'Showing matching entries'}
             {selectedCategory ? ` · Category: ${selectedCategory}` : ''}
+            {selectedType ? ` · Type: ${friendlyLabel(selectedType)}` : ''}
+            {selectedTransactionIdFilter ? ` · ID: ${selectedTransactionIdFilter}` : ''}
             {selectedMerchant ? ` · Source: ${selectedMerchant}` : ''}
             {selectedContactId ? ' · Contact filter' : ''}
+            {selectedAccountId ? ' · Account filter' : ''}
+            {selectedMinAmountMinor
+              ? ` · Minimum amount: ${majorFilterFromMinor(selectedMinAmountMinor)}`
+              : ''}
+            {selectedMaxAmountMinor
+              ? ` · Maximum amount: ${majorFilterFromMinor(selectedMaxAmountMinor)}`
+              : ''}
           </span>
-          <Button type="button" variant="secondary" onClick={clearDateFilter}>
-            Clear dates
+          <Button type="button" variant="secondary" onClick={clearFilters}>
+            Clear filters
           </Button>
         </div>
       ) : null}
@@ -2710,11 +3207,11 @@ export function TransactionsPage() {
             isLoading={contactsQuery.isLoading || savedNamesQuery.isLoading}
             isError={Boolean(contactsQuery.error || savedNamesQuery.error)}
             inputValue={search}
-            onInputChange={setSearch}
-            onContactSelect={(contact) => setSearch(contact.name)}
-            onSavedNameSelect={(name) => setSearch(name.name)}
-            inputAriaLabel="Search entries by name, description, or contact"
-            inputPlaceholder="Search name, description, or contact"
+            onInputChange={updateSearch}
+            onContactSelect={(contact) => updateSearch(contact.name)}
+            onSavedNameSelect={(name) => updateSearch(name.name)}
+            inputAriaLabel="Search entries by transaction ID, name, description, or contact"
+            inputPlaceholder="Search ID, name, description, or contact"
             openOnFocus
           />
         </div>
@@ -2725,23 +3222,17 @@ export function TransactionsPage() {
           onClick={toggleFilters}
         >
           <Filter aria-hidden="true" />
-          {filter === 'all' && !selectedFilterRange && !selectedDateRange ? 'Filters' : 'Filtered'}
+          {activeTransactionQuery.size === 0 ? 'Filters' : 'Filtered'}
         </Button>
-        {canShareTransactions ? (
+        {canExportTransactions ? (
           <Button
             variant="secondary"
-            disabled={!filtered.length}
-            onClick={() => {
-              downloadTransactionsCsv(filtered, workspace.name, privacyMode)
-              setExportFeedback(
-                privacyMode
-                  ? 'CSV downloaded with amounts hidden by privacy mode.'
-                  : 'CSV downloaded with the currently loaded, filtered entries.',
-              )
-            }}
+            loading={exportMutation.isPending}
+            disabled={exportMutation.isPending}
+            onClick={() => exportMutation.mutate()}
           >
             <Download aria-hidden="true" />
-            Export loaded entries
+            Export CSV
           </Button>
         ) : null}
       </div>
@@ -2759,26 +3250,108 @@ export function TransactionsPage() {
                 : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }
             }
           >
-            <section className="transaction-filter-kind" aria-labelledby="transaction-filter-kind-label">
-              <span id="transaction-filter-kind-label">Show</span>
-              <div role="group" aria-label="Filter transactions">
-                {[
-                  ['all', 'All'],
-                  ['debit', 'Expenses'],
-                  ['credit', 'Income'],
-                  ['pending', 'Pending'],
-                ].map(([value, label]) => (
-                  <button
-                    type="button"
-                    key={value}
-                    aria-pressed={filter === value}
-                    onClick={() => setFilter(value as typeof filter)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </section>
+            <div className="transaction-filter-fields">
+              <Field label="Transaction ID">
+                <input
+                  inputMode="numeric"
+                  maxLength={18}
+                  value={filterTransactionId}
+                  placeholder="Exact ID"
+                  onChange={(event) =>
+                    setFilterTransactionId(
+                      event.target.value.replace(/\D/g, '').slice(0, 18),
+                    )
+                  }
+                />
+              </Field>
+              <Field label="Type">
+                <Select value={filterType} onValueChange={setFilterType}>
+                  <SelectTrigger className="w-full" data-field-control>
+                    <SelectValue placeholder="All types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All types</SelectItem>
+                    {(['expense', 'income', 'transfer', 'split'] as AddMode[]).map(
+                      (transactionType) => (
+                        <SelectItem key={transactionType} value={transactionType}>
+                          {friendlyLabel(transactionType)}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Category">
+                <input
+                  maxLength={100}
+                  value={filterCategory}
+                  placeholder="Exact category"
+                  onChange={(event) => setFilterCategory(event.target.value)}
+                />
+              </Field>
+              <Field label="Account">
+                <Select
+                  value={filterAccountId}
+                  onValueChange={setFilterAccountId}
+                >
+                  <SelectTrigger className="w-full" data-field-control>
+                    <SelectValue placeholder="All accounts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All accounts</SelectItem>
+                    {(accountQuery.data ?? []).map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Contact">
+                <Select
+                  value={filterContactId}
+                  onValueChange={setFilterContactId}
+                >
+                  <SelectTrigger className="w-full" data-field-control>
+                    <SelectValue placeholder="All contacts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All contacts</SelectItem>
+                    {(contactsQuery.data ?? []).map((contact) => (
+                      <SelectItem key={contact.id} value={contact.id}>
+                        {contact.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field
+                label="Min amount"
+                hint="Major currency units"
+                error={amountFilterError || undefined}
+              >
+                <input
+                  inputMode="decimal"
+                  value={filterMinAmount}
+                  placeholder="0.00"
+                  onChange={(event) => {
+                    setFilterMinAmount(event.target.value)
+                    setAmountFilterError('')
+                  }}
+                />
+              </Field>
+              <Field label="Max amount" hint="Major currency units">
+                <input
+                  inputMode="decimal"
+                  value={filterMaxAmount}
+                  placeholder="No maximum"
+                  onChange={(event) => {
+                    setFilterMaxAmount(event.target.value)
+                    setAmountFilterError('')
+                  }}
+                />
+              </Field>
+            </div>
             <div className="transaction-filter-dates">
               <DatePicker
                 label="From date"
@@ -2800,11 +3373,11 @@ export function TransactionsPage() {
                 }}
               />
               <div className="transaction-filter-date-actions">
-                <Button type="button" variant="secondary" onClick={clearDateFilter}>
+                <Button type="button" variant="secondary" onClick={clearFilters}>
                   Clear
                 </Button>
-                <Button type="button" onClick={applyDateFilter}>
-                  Apply date filter
+                <Button type="button" onClick={applyFilters}>
+                  Apply filters
                 </Button>
               </div>
             </div>
@@ -2813,6 +3386,13 @@ export function TransactionsPage() {
       </AnimatePresence>
       {exportFeedback ? (
         <SuccessNotice>{exportFeedback}</SuccessNotice>
+      ) : null}
+      {exportMutation.error ? (
+        <div className="form-alert" role="alert">
+          {exportMutation.error instanceof ApiError
+            ? exportMutation.error.message
+            : 'Workspace export could not be downloaded. Try again.'}
+        </div>
       ) : null}
       {query.isLoading || accountQuery.isLoading ? (
         <DataSkeleton />
@@ -2880,7 +3460,11 @@ export function TransactionsPage() {
           }
           action={
             !search && canCreateTransactions ? (
-              <Button onClick={() => setSearchParams({ add: 'expense' })}>
+              <Button onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.set('add', 'expense')
+                setSearchParams(next)
+              }}>
                 Add transaction
               </Button>
             ) : undefined
@@ -2919,6 +3503,7 @@ export function TransactionsPage() {
         description="Review this entry before editing, sharing, or deleting it."
         details={selectedTransaction ? [
           { label: 'Type', value: friendlyLabel(selectedTransaction.rawType ?? selectedTransaction.direction) },
+          ...(selectedTransaction.transactionId ? [{ label: 'Transaction ID', value: selectedTransaction.transactionId, copyable: true }] : []),
           { label: 'Amount', value: formatMoney(selectedTransaction.amount) },
           { label: 'Date', value: formatDate(selectedTransaction.occurredAt) },
           { label: 'Category', value: selectedTransaction.category || 'Uncategorised' },
@@ -2943,7 +3528,7 @@ export function TransactionsPage() {
           selectedTransaction && demoMode
             ? buildSafeTextSharePayload({
                 title: 'Transaction summary',
-                text: `${selectedTransaction.category || 'Transaction'}: ${formatMoney(selectedTransaction.amount)} on ${formatDate(selectedTransaction.occurredAt)}`,
+                text: `${selectedTransaction.transactionId ? `ID ${selectedTransaction.transactionId} · ` : ''}${selectedTransaction.category || 'Transaction'}: ${formatMoney(selectedTransaction.amount)} on ${formatDate(selectedTransaction.occurredAt)}`,
               })
             : undefined
         }

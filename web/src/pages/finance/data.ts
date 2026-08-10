@@ -139,6 +139,12 @@ export function normalizeFinanceData<T>(key: string, response: unknown): T {
       const creator = normalizeCreatorSummary(transaction.creator)
       return {
         id: String(transaction.id),
+        transactionId: transaction.transactionId
+          ? String(transaction.transactionId)
+          : undefined,
+        transactionIdScope: normalizeTransactionIdScope(
+          transaction.transactionIdScope,
+        ),
         merchant: String(
           transaction.merchant ?? transaction.notes ?? 'Transaction',
         ),
@@ -341,6 +347,9 @@ function normalizeDashboardActivity(value: unknown): DashboardActivity[] {
     const row = isRecord(item) ? item : {}
     return {
       id: String(row.id ?? ''),
+      transactionId: row.transactionId
+        ? String(row.transactionId)
+        : undefined,
       label: String(row.label ?? 'Transaction'),
       type: String(row.type ?? 'expense'),
       category: row.category ? String(row.category) : undefined,
@@ -354,6 +363,15 @@ function normalizeDashboardActivity(value: unknown): DashboardActivity[] {
       occurredAt: String(row.occurredAt ?? ''),
     }
   })
+}
+
+function normalizeTransactionIdScope(value: unknown) {
+  return value === 'expense' ||
+    value === 'income' ||
+    value === 'transfer' ||
+    value === 'split'
+    ? value
+    : undefined
 }
 
 function normalizeDashboardContacts(value: unknown): DashboardContactInsight[] {
@@ -567,6 +585,7 @@ function normalizeTransactionType(
   return value === 'expense' ||
     value === 'income' ||
     value === 'transfer' ||
+    value === 'split' ||
     value === 'refund' ||
     value === 'reimbursement' ||
     value === 'adjustment'

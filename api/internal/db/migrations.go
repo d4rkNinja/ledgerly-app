@@ -2,13 +2,17 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/d4rkNinja/moneytracking-ledgerly-api/internal/model"
 )
 
 const invitationDeduplicationBatchSize = 500
@@ -18,6 +22,20 @@ const invitationDeduplicationBatchSize = 500
 // occurred_at and a valid created_at; a non-zero declared date is never
 // selected or overwritten.
 const legacyTransactionDateBatchSize = 500
+
+type transactionSequenceMigrationRow struct {
+	ID            string        `bson:"_id"`
+	WorkspaceID   string        `bson:"workspace_id"`
+	Type          string        `bson:"type"`
+	TransactionID string        `bson:"transaction_id"`
+	SequenceScope string        `bson:"sequence_scope"`
+	Splits        []model.Split `bson:"splits"`
+}
+
+type transactionSequenceMigrationKey struct {
+	WorkspaceID     string
+	TransactionType string
+}
 
 type pendingInvitationIdentity struct {
 	ID          string `bson:"_id"`
@@ -127,6 +145,224 @@ func (mc *MongoClient) backfillLegacyTransactionDates(ctx context.Context) error
 		if processed == 0 {
 			break
 		}
+	}
+	return nil
+}
+
+func transactionSequenceMigrationSort() bson.D {
+	return bson.D{
+		{Key: "occurred_at", Value: 1},
+		{Key: "created_at", Value: 1},
+		{Key: "_id", Value: 1},
+	}
+}
+
+func missingTransactionIDFilter() bson.M {
+	return bson.M{"$or": bson.A{
+		bson.M{"transaction_id": bson.M{"$exists": false}},
+		bson.M{"transaction_id": ""},
+		bson.M{"transaction_id": nil},
+	}}
+}
+
+func transactionSequenceMigrationScope(row transactionSequenceMigrationRow) string {
+	if model.IsTransactionSequenceType(row.SequenceScope) {
+		return row.SequenceScope
+	}
+	return model.TransactionSequenceScope(row.Type, len(row.Splits) > 0)
+}
+
+func (mc *MongoClient) scanTransactionSequenceHighWater(
+	ctx context.Context,
+) (map[transactionSequenceMigrationKey]int64, error) {
+	collection := mc.Database.Collection(transactionsCollection)
+	cursor, err := collection.Find(
+		ctx,
+		bson.M{"workspace_id": bson.M{"$type": "string", "$gt": ""}},
+		options.Find().
+			SetProjection(bson.M{
+				"_id": 1, "workspace_id": 1, "type": 1, "splits": 1,
+				"transaction_id": 1, "sequence_scope": 1,
+			}).
+			SetSort(transactionSequenceMigrationSort()).
+			SetAllowDiskUse(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("scan transaction sequence high-water marks: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	highWater := make(map[transactionSequenceMigrationKey]int64)
+	for cursor.Next(ctx) {
+		var row transactionSequenceMigrationRow
+		if err := cursor.Decode(&row); err != nil {
+			return nil, fmt.Errorf("decode transaction sequence row: %w", err)
+		}
+		if row.ID == "" || row.WorkspaceID == "" {
+			continue
+		}
+		scope := transactionSequenceMigrationScope(row)
+		key := transactionSequenceMigrationKey{WorkspaceID: row.WorkspaceID, TransactionType: scope}
+		if _, exists := highWater[key]; !exists {
+			highWater[key] = 0
+		}
+		if row.SequenceScope != scope {
+			if _, err := collection.UpdateOne(
+				ctx,
+				bson.M{"_id": row.ID, "workspace_id": row.WorkspaceID},
+				bson.M{"$set": bson.M{"sequence_scope": scope}},
+			); err != nil {
+				return nil, fmt.Errorf("persist transaction sequence scope for %s: %w", row.ID, err)
+			}
+		}
+		if row.TransactionID == "" {
+			continue
+		}
+		number, err := model.ParseTransactionSequenceNumber(row.TransactionID)
+		if err != nil {
+			return nil, fmt.Errorf("transaction %s has invalid transaction_id %q: %w", row.ID, row.TransactionID, err)
+		}
+		if number > highWater[key] {
+			highWater[key] = number
+		}
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, fmt.Errorf("iterate transaction sequence high-water marks: %w", err)
+	}
+	return highWater, nil
+}
+
+func (mc *MongoClient) seedTransactionSequence(
+	ctx context.Context,
+	key transactionSequenceMigrationKey,
+	minimumNext int64,
+) error {
+	defaults := model.DefaultTransactionSequence(key.WorkspaceID, key.TransactionType)
+	collection := mc.Database.Collection(transactionSequencesCollection)
+	if _, err := collection.UpdateOne(
+		ctx,
+		bson.M{"_id": defaults.ID},
+		bson.M{"$setOnInsert": bson.M{
+			"workspace_id": key.WorkspaceID, "transaction_type": key.TransactionType,
+			"auto_generate": true, "next_number": int64(1),
+			"minimum_digits": model.DefaultTransactionSequenceMinimumDigits,
+		}},
+		options.Update().SetUpsert(true),
+	); err != nil && !mongo.IsDuplicateKeyError(err) {
+		return fmt.Errorf("create transaction sequence %s/%s: %w", key.WorkspaceID, key.TransactionType, err)
+	}
+	if minimumNext < 1 {
+		minimumNext = 1
+	}
+	if _, err := collection.UpdateOne(
+		ctx,
+		bson.M{"_id": defaults.ID},
+		bson.M{"$max": bson.M{"next_number": minimumNext}},
+	); err != nil {
+		return fmt.Errorf("advance transaction sequence %s/%s: %w", key.WorkspaceID, key.TransactionType, err)
+	}
+	return nil
+}
+
+func (mc *MongoClient) allocateMigrationTransactionID(
+	ctx context.Context,
+	key transactionSequenceMigrationKey,
+) (string, error) {
+	var sequence model.TransactionSequence
+	err := mc.Database.Collection(transactionSequencesCollection).FindOneAndUpdate(
+		ctx,
+		bson.M{
+			"_id": key.WorkspaceID + ":" + key.TransactionType,
+			"next_number": bson.M{
+				"$gte": int64(1),
+				"$lte": model.MaximumTransactionSequenceNumber,
+			},
+		},
+		bson.M{"$inc": bson.M{"next_number": int64(1)}},
+		options.FindOneAndUpdate().SetReturnDocument(options.Before),
+	).Decode(&sequence)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return "", fmt.Errorf("transaction sequence %s/%s is exhausted", key.WorkspaceID, key.TransactionType)
+	}
+	if err != nil {
+		return "", fmt.Errorf("allocate transaction sequence %s/%s: %w", key.WorkspaceID, key.TransactionType, err)
+	}
+	return model.FormatTransactionSequenceNumber(sequence.NextNumber, sequence.MinimumDigits), nil
+}
+
+// backfillTransactionSequences assigns IDs only to legacy rows that do not
+// have one. Existing IDs are never renumbered. The ordered scan makes each
+// scope stable by occurred_at, created_at, then _id; persisted atomic counters
+// make interrupted reruns safe and retain all previously reserved numbers.
+func (mc *MongoClient) backfillTransactionSequences(ctx context.Context) error {
+	highWater, err := mc.scanTransactionSequenceHighWater(ctx)
+	if err != nil {
+		return err
+	}
+	keys := make([]transactionSequenceMigrationKey, 0, len(highWater))
+	for key := range highWater {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(left, right int) bool {
+		if keys[left].WorkspaceID == keys[right].WorkspaceID {
+			return keys[left].TransactionType < keys[right].TransactionType
+		}
+		return keys[left].WorkspaceID < keys[right].WorkspaceID
+	})
+	for _, key := range keys {
+		if err := mc.seedTransactionSequence(ctx, key, highWater[key]+1); err != nil {
+			return err
+		}
+	}
+
+	collection := mc.Database.Collection(transactionsCollection)
+	filter := missingTransactionIDFilter()
+	filter["workspace_id"] = bson.M{"$type": "string", "$gt": ""}
+	cursor, err := collection.Find(
+		ctx,
+		filter,
+		options.Find().
+			SetProjection(bson.M{"_id": 1, "workspace_id": 1, "type": 1, "splits": 1, "sequence_scope": 1}).
+			SetSort(transactionSequenceMigrationSort()).
+			SetAllowDiskUse(true),
+	)
+	if err != nil {
+		return fmt.Errorf("scan transactions missing transaction IDs: %w", err)
+	}
+	defer cursor.Close(ctx)
+	for cursor.Next(ctx) {
+		var row transactionSequenceMigrationRow
+		if err := cursor.Decode(&row); err != nil {
+			return fmt.Errorf("decode transaction missing transaction ID: %w", err)
+		}
+		if row.ID == "" || row.WorkspaceID == "" {
+			continue
+		}
+		scope := transactionSequenceMigrationScope(row)
+		key := transactionSequenceMigrationKey{WorkspaceID: row.WorkspaceID, TransactionType: scope}
+		if _, exists := highWater[key]; !exists {
+			if err := mc.seedTransactionSequence(ctx, key, 1); err != nil {
+				return err
+			}
+			highWater[key] = 0
+		}
+		transactionID, err := mc.allocateMigrationTransactionID(ctx, key)
+		if err != nil {
+			return err
+		}
+		conditional := missingTransactionIDFilter()
+		conditional["_id"] = row.ID
+		conditional["workspace_id"] = row.WorkspaceID
+		if _, err := collection.UpdateOne(
+			ctx,
+			conditional,
+			bson.M{"$set": bson.M{"transaction_id": transactionID, "sequence_scope": scope}},
+		); err != nil {
+			return fmt.Errorf("backfill transaction ID for %s: %w", row.ID, err)
+		}
+	}
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("iterate transactions missing transaction IDs: %w", err)
 	}
 	return nil
 }

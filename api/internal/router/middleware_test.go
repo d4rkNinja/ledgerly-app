@@ -27,6 +27,9 @@ func TestCORSPassesBodylessPost(t *testing.T) {
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
 	}
+	if exposed := recorder.Header().Get("Access-Control-Expose-Headers"); !strings.Contains(exposed, "Content-Disposition") || !strings.Contains(exposed, "X-Request-ID") {
+		t.Fatalf("Access-Control-Expose-Headers = %q", exposed)
+	}
 }
 
 func TestCORSPreflightPolicy(t *testing.T) {

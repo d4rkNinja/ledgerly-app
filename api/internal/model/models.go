@@ -171,7 +171,8 @@ type Account struct {
 }
 
 type Split struct {
-	UserID      string `bson:"user_id" json:"userId"`
+	UserID      string `bson:"user_id" json:"userId,omitempty"`
+	MemberEmail string `bson:"-" json:"memberEmail,omitempty"`
 	AmountMinor int64  `bson:"amount_minor" json:"amountMinor"`
 }
 
@@ -214,23 +215,28 @@ type SavedTransactionName struct {
 }
 
 type Transaction struct {
-	ID                   string          `bson:"_id" json:"id"`
-	WorkspaceID          string          `bson:"workspace_id" json:"-"`
-	VaultID              string          `bson:"vault_id" json:"-"`
-	AccountID            string          `bson:"account_id" json:"accountId"`
-	DestinationAccountID string          `bson:"destination_account_id,omitempty" json:"destinationAccountId,omitempty"`
-	CreatedBy            string          `bson:"created_by" json:"-"`
-	Creator              *CreatorSummary `bson:"-" json:"creator,omitempty"`
-	Type                 string          `bson:"type" json:"type"`
-	AmountMinor          int64           `bson:"amount_minor" json:"amountMinor"`
-	Currency             string          `bson:"currency" json:"currency"`
-	Category             string          `bson:"category,omitempty" json:"category,omitempty"`
-	Merchant             string          `bson:"merchant,omitempty" json:"merchant,omitempty"`
-	Notes                string          `bson:"notes,omitempty" json:"notes,omitempty"`
-	Description          string          `bson:"description,omitempty" json:"description,omitempty"`
-	ContactID            string          `bson:"contact_id,omitempty" json:"contactId,omitempty"`
-	GoalID               string          `bson:"goal_id,omitempty" json:"goalId,omitempty"`
-	Contact              *ContactSummary `bson:"-" json:"contact,omitempty"`
+	ID            string `bson:"_id" json:"id"`
+	WorkspaceID   string `bson:"workspace_id" json:"-"`
+	TransactionID string `bson:"transaction_id,omitempty" json:"transactionId"`
+	SequenceScope string `bson:"sequence_scope,omitempty" json:"-"`
+	// AutoGenerateTransactionID is a create-command flag consumed by the
+	// repository. It is never persisted or exposed in transaction responses.
+	AutoGenerateTransactionID bool            `bson:"-" json:"-"`
+	VaultID                   string          `bson:"vault_id" json:"-"`
+	AccountID                 string          `bson:"account_id" json:"accountId"`
+	DestinationAccountID      string          `bson:"destination_account_id,omitempty" json:"destinationAccountId,omitempty"`
+	CreatedBy                 string          `bson:"created_by" json:"-"`
+	Creator                   *CreatorSummary `bson:"-" json:"creator,omitempty"`
+	Type                      string          `bson:"type" json:"type"`
+	AmountMinor               int64           `bson:"amount_minor" json:"amountMinor"`
+	Currency                  string          `bson:"currency" json:"currency"`
+	Category                  string          `bson:"category,omitempty" json:"category,omitempty"`
+	Merchant                  string          `bson:"merchant,omitempty" json:"merchant,omitempty"`
+	Notes                     string          `bson:"notes,omitempty" json:"notes,omitempty"`
+	Description               string          `bson:"description,omitempty" json:"description,omitempty"`
+	ContactID                 string          `bson:"contact_id,omitempty" json:"contactId,omitempty"`
+	GoalID                    string          `bson:"goal_id,omitempty" json:"goalId,omitempty"`
+	Contact                   *ContactSummary `bson:"-" json:"contact,omitempty"`
 	// Tags and splits are accepted through TransactionInput, but they are not
 	// returned in transaction views. Tags can encode internal workflow state
 	// and split rows contain member identifiers. MarshalJSON exposes only a

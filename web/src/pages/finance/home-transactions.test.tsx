@@ -29,10 +29,16 @@ const apiMocks = vi.hoisted(() => ({
   download: vi.fn(),
 }));
 
+const exportMocks = vi.hoisted(() => ({
+  downloadWorkspaceExport: vi.fn(),
+}));
+
 vi.mock("@/lib/api-client", () => ({
   ApiError: class ApiError extends Error {},
   api: apiMocks,
 }));
+
+vi.mock("@/lib/export", () => exportMocks);
 
 const indexCss = readFileSync(
   path.join(process.cwd(), "src", "index.css"),
@@ -106,7 +112,11 @@ const liveWorkspace = {
   type: "family" as const,
   role: "owner" as const,
   memberCount: 2,
-  permissions: ["view_transactions", "create_transactions"] as Permission[],
+  permissions: [
+    "view_transactions",
+    "create_transactions",
+    "export_data",
+  ] as Permission[],
 };
 
 const liveAppValue: AppContextValue = {
@@ -324,14 +334,17 @@ function renderTransactionDialog() {
   );
 }
 
-function renderLiveTransactionDialog(dialogAccounts = accounts) {
+function renderLiveTransactionDialog(
+  dialogAccounts = accounts,
+  initialMode: "expense" | "income" | "transfer" | "split" = "expense",
+) {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <AppContext.Provider value={liveAppValue}>
         <MotionConfig reducedMotion="always">
           <TransactionDialog
             open
-            initialMode="expense"
+            initialMode={initialMode}
             accounts={dialogAccounts}
             onClose={vi.fn()}
             onDemoAdded={vi.fn()}
@@ -474,6 +487,33 @@ describe("TransactionDialog dates and accounts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMocks.post.mockResolvedValue({ id: "transaction-new" });
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-general",
+            transactionType: "expense",
+            name: "General",
+            sortOrder: 0,
+            isActive: true,
+            usageCount: 0,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "expense",
+            autoGenerate: true,
+            nextNumber: 1,
+            minimumDigits: 4,
+            preview: "0001",
+            minimumAvailableNextNumber: 1,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
     vi.stubGlobal("ResizeObserver", ResizeObserverStub);
     vi.stubGlobal("IntersectionObserver", IntersectionObserverStub);
     vi.stubGlobal(
@@ -535,6 +575,8 @@ describe("TransactionDialog dates and accounts", () => {
         "/workspaces/workspace-home/transactions",
         expect.objectContaining({
           occurredAt: toUtcDateOnly(pastDate),
+          autoGenerateTransactionId: true,
+          transactionId: undefined,
         }),
         expect.objectContaining({ "Idempotency-Key": expect.any(String) }),
       );
@@ -603,6 +645,119 @@ describe("TransactionDialog dates and accounts", () => {
     expect(
       screen.queryByRole("option", { name: "Closed account" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("loads active members and sends exact member-email shares for a live split", async () => {
+    const user = userEvent.setup();
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.endsWith("/members")) {
+        return Promise.resolve([
+          {
+            name: "Asha Rao",
+            email: "asha@example.test",
+            role: "owner",
+            permissions: [],
+            status: "active",
+            joinedAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            name: "Bina Shah",
+            email: "bina@example.test",
+            role: "member",
+            permissions: [],
+            status: "active",
+            joinedAt: "2026-02-01T00:00:00.000Z",
+          },
+          {
+            name: "Pending Member",
+            email: "pending@example.test",
+            role: "member",
+            permissions: [],
+            status: "pending",
+            joinedAt: "",
+          },
+        ]);
+      }
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-split-expense",
+            transactionType: "split",
+            name: "Split expense",
+            sortOrder: 0,
+            isActive: true,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "split",
+            autoGenerate: true,
+            nextNumber: 8,
+            minimumDigits: 4,
+            preview: "0008",
+            minimumAvailableNextNumber: 8,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    apiMocks.post.mockResolvedValueOnce({
+      id: "transaction-split",
+      transactionId: "0008",
+    });
+
+    renderLiveTransactionDialog(accounts, "split");
+
+    const ashaShare = await screen.findByRole("textbox", {
+      name: "Share for Asha Rao",
+    });
+    const binaShare = screen.getByRole("textbox", {
+      name: "Share for Bina Shah",
+    });
+    expect(
+      screen.queryByRole("textbox", { name: "Share for Pending Member" }),
+    ).not.toBeInTheDocument();
+    expect(apiMocks.get).toHaveBeenCalledWith(
+      "/workspaces/workspace-home/members",
+    );
+
+    await user.type(
+      screen.getByRole("combobox", { name: "Name or description" }),
+      "Weekend groceries",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "100");
+    await user.type(ashaShare, "40");
+    await user.type(binaShare, "50");
+    const save = screen.getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /Shares total.*90.*must equal.*100/,
+    );
+    expect(apiMocks.post).not.toHaveBeenCalled();
+
+    await user.clear(binaShare);
+    await user.type(binaShare, "60");
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(apiMocks.post).toHaveBeenCalledWith(
+        "/workspaces/workspace-home/transactions",
+        expect.objectContaining({
+          type: "split",
+          category: "Split expense",
+          autoGenerateTransactionId: true,
+          splits: [
+            { memberEmail: "asha@example.test", amountMinor: 4000 },
+            { memberEmail: "bina@example.test", amountMinor: 6000 },
+          ],
+        }),
+        expect.objectContaining({ "Idempotency-Key": expect.any(String) }),
+      );
+    });
   });
 });
 
@@ -681,7 +836,7 @@ describe("TransactionsPage date filters", () => {
     renderTransactions();
 
     const search = await screen.findByRole("combobox", {
-      name: "Search entries by name, description, or contact",
+      name: "Search entries by transaction ID, name, description, or contact",
     });
     await user.click(search);
 
@@ -738,7 +893,7 @@ describe("TransactionsPage date filters", () => {
         })
       ).at(-1)!,
     );
-    await user.click(screen.getByRole("button", { name: "Apply date filter" }));
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
 
     expect(screen.getByTestId("location-search")).toHaveTextContent(
       `?from=${from}&to=${today}`,
@@ -748,6 +903,104 @@ describe("TransactionsPage date filters", () => {
         `/workspaces/workspace-home/transactions?from=${encodeURIComponent(`${from}T00:00:00.000Z`)}&to=${encodeURIComponent(`${addDateOnlyDays(today, 1)}T00:00:00.000Z`)}`,
       );
     });
+  });
+
+  it("loads live categories and sends a manual transaction ID", async () => {
+    const user = userEvent.setup();
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-client-meals",
+            transactionType: "expense",
+            name: "Client meals",
+            sortOrder: 0,
+            isActive: true,
+            usageCount: 3,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "expense",
+            autoGenerate: false,
+            nextNumber: 43,
+            minimumDigits: 6,
+            preview: "000043",
+            minimumAvailableNextNumber: 43,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    renderLiveTransactionDialog();
+
+    expect(
+      await screen.findByRole("button", { name: "Client meals" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "General" })).not.toBeInTheDocument();
+    const transactionId = screen.getByRole("textbox", {
+      name: "Transaction ID",
+    });
+    await waitFor(() => expect(transactionId).toBeEnabled());
+    await user.type(transactionId, "000099");
+    await user.type(
+      screen.getByRole("combobox", { name: "Name or description" }),
+      "Team lunch",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "48");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(apiMocks.post).toHaveBeenCalledWith(
+        "/workspaces/workspace-home/transactions",
+        expect.objectContaining({
+          category: "Client meals",
+          autoGenerateTransactionId: false,
+          transactionId: "000099",
+        }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  it("combines exact ID, type, and amount filters and forwards them to export", async () => {
+    const user = userEvent.setup();
+    exportMocks.downloadWorkspaceExport.mockResolvedValue("filtered.csv");
+    renderTransactions();
+
+    await screen.findByRole("heading", { name: "Transactions" });
+    await user.click(screen.getByRole("button", { name: "Filters" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Transaction ID" }),
+      "0042",
+    );
+    await user.click(screen.getByRole("button", { name: "All types" }));
+    await user.click(screen.getByRole("option", { name: "Expense" }));
+    await user.type(screen.getByRole("textbox", { name: "Min amount" }), "12.50");
+    await user.type(screen.getByRole("textbox", { name: "Max amount" }), "99.99");
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
+
+    const expectedQuery =
+      "transactionId=0042&type=expense&minAmountMinor=1250&maxAmountMinor=9999";
+    expect(screen.getByTestId("location-search")).toHaveTextContent(
+      `?${expectedQuery}`,
+    );
+    await waitFor(() => {
+      expect(apiMocks.get).toHaveBeenCalledWith(
+        `/workspaces/workspace-home/transactions?${expectedQuery}&limit=100`,
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
+    await waitFor(() =>
+      expect(exportMocks.downloadWorkspaceExport).toHaveBeenCalled(),
+    );
+    const [workspaceId, forwarded] =
+      exportMocks.downloadWorkspaceExport.mock.calls.at(-1)!;
+    expect(workspaceId).toBe("workspace-home");
+    expect((forwarded as URLSearchParams).toString()).toBe(expectedQuery);
   });
 
   it("opens a URL-selected authorized transaction and clears missing IDs safely", async () => {
@@ -797,6 +1050,60 @@ describe("TransactionsPage date filters", () => {
     renderTransactions("/app/transactions?transaction=missing");
     await waitFor(() => expect(screen.getByTestId("location-search")).toBeEmptyDOMElement());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("shows and copies the public transaction ID", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.endsWith("/accounts")) {
+        return Promise.resolve([
+          {
+            id: "account-home",
+            name: "Everyday account",
+            type: "Cash",
+            balanceMinor: 0,
+            currency: "INR",
+          },
+        ]);
+      }
+      if (path.endsWith("/transactions")) {
+        return Promise.resolve([
+          {
+            id: "transaction-public-id",
+            transactionId: "000042",
+            transactionIdScope: "income",
+            merchant: "Invoice payment",
+            category: "Freelance",
+            type: "income",
+            amountMinor: 240000,
+            currency: "INR",
+            accountId: "account-home",
+            occurredAt: "2026-08-08T00:00:00.000Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    renderTransactions();
+    const row = await screen.findByRole("button", { name: /Invoice payment/ });
+    expect(row).toHaveTextContent("ID 000042");
+    await user.click(row);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("000042");
+    await user.click(
+      screen.getByRole("button", { name: "Copy transaction id" }),
+    );
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("000042"));
+
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: undefined,
+    });
   });
 });
 
@@ -1242,8 +1549,9 @@ describe("HomePage monthly summary", () => {
 });
 
 describe('transaction search fields', () => {
-  it('matches names, descriptions, notes, and contact names without phone or category fields', () => {
+  it('matches transaction IDs, names, descriptions, notes, and contact names without private contact fields', () => {
     const transaction = {
+      transactionId: '004218',
       merchant: 'City Supermarket',
       category: 'Groceries',
       note: 'Weekly household run',
@@ -1257,6 +1565,7 @@ describe('transaction search fields', () => {
     }
 
     expect(matchesTransactionSearch(transaction, 'supermarket')).toBe(true)
+    expect(matchesTransactionSearch(transaction, '421')).toBe(true)
     expect(matchesTransactionSearch(transaction, 'kitchen')).toBe(true)
     expect(matchesTransactionSearch(transaction, 'household')).toBe(true)
     expect(matchesTransactionSearch(transaction, 'asha')).toBe(true)

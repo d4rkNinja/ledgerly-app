@@ -93,6 +93,7 @@ export function buildDashboardModel(
       const occurredAt = occurredAtFor(transaction, now)
       return {
         id: transaction.id,
+        transactionId: transaction.transactionId,
         label: transaction.merchant.trim() || transaction.category || 'Transaction',
         type: isCredit(transaction) ? 'income' : 'expense',
         category: transaction.category,

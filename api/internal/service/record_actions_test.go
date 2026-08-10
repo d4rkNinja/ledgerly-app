@@ -681,7 +681,7 @@ func TestArchiveAccountKeepsHistoricalTransactionsVisible(t *testing.T) {
 func TestShareTransactionRequiresExportAndOmitsSensitiveFields(t *testing.T) {
 	finance, store := newRecordActionService()
 	store.transactions["transaction-a"] = model.Transaction{
-		ID: "internal-transaction-id", WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "account-a",
+		ID: "internal-transaction-id", TransactionID: "0025", WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "account-a",
 		CreatedBy: "owner-a", Type: "expense", AmountMinor: 1_250, Currency: "INR", Category: "Food",
 		Merchant: "Cafe https://private.example.test/receipt", Notes: "private note must not leave server", Privacy: "workspace",
 		OccurredAt: time.Date(2026, 8, 3, 10, 30, 0, 0, time.UTC),
@@ -698,7 +698,7 @@ func TestShareTransactionRequiresExportAndOmitsSensitiveFields(t *testing.T) {
 			t.Fatalf("share payload leaked %q: %s", forbidden, text)
 		}
 	}
-	if !strings.Contains(payload.Text, "Food") || !strings.Contains(payload.Text, "INR 12.50") {
+	if !strings.Contains(payload.Text, "Transaction ID: 0025") || !strings.Contains(payload.Text, "Food") || !strings.Contains(payload.Text, "INR 12.50") {
 		t.Fatalf("share payload omitted useful safe details: %#v", payload)
 	}
 	if len(store.audits) != 1 || store.audits[0].Action != "transaction.shared" {

@@ -35,12 +35,13 @@ export function matchesSearchText(
 export function matchesTransactionSearch(
   transaction: Pick<
     Transaction,
-    'merchant' | 'note' | 'description' | 'contact'
+    'transactionId' | 'merchant' | 'note' | 'description' | 'contact'
   >,
   query: string,
 ) {
   return matchesSearchText(
     [
+      transaction.transactionId,
       transaction.merchant,
       transaction.note,
       transaction.description,

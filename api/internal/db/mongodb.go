@@ -56,6 +56,10 @@ func NewClient(ctx context.Context, cfg config.Config) (*MongoClient, error) {
 		disconnectAfterFailure(client)
 		return nil, fmt.Errorf("prepare transaction date compatibility: %w", err)
 	}
+	if err := mc.backfillTransactionSequences(ctx); err != nil {
+		disconnectAfterFailure(client)
+		return nil, fmt.Errorf("prepare transaction sequence compatibility: %w", err)
+	}
 	if err := mc.createIndexes(ctx); err != nil {
 		disconnectAfterFailure(client)
 		return nil, fmt.Errorf("create indexes: %w", err)

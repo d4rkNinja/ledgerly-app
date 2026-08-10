@@ -5,149 +5,107 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/d4rkNinja/moneytracking-ledgerly-api/internal/model"
 	"github.com/d4rkNinja/moneytracking-ledgerly-api/internal/repository"
 )
 
-const workspaceExportCSVDateFormat = "2006-01-02"
+const transactionExportDateFormat = "2006-01-02"
 
-var workspaceExportHeaders = []string{
-	"section",
-	"record_type",
-	"name",
-	"email",
-	"role",
-	"permissions",
-	"status",
-	"joined_at",
-	"workspace_type",
-	"financial_month_start",
-	"created_at",
-	"updated_at",
-	"occurred_at",
-	"merchant",
-	"category",
-	"transaction_type",
-	"amount_minor",
-	"currency",
-	"notes",
-	"creator_name",
-	"creator_status",
-	"record_count",
-	"description",
-	"contact_name",
-	"contact_phone",
-	"contact_email",
+var transactionExportHeaders = []string{
+	"Transaction ID",
+	"Transaction Type",
+	"Name",
+	"Contact",
+	"Description",
+	"Notes",
+	"Amount",
+	"Currency",
+	"Category",
+	"Account",
+	"Destination Account",
+	"Transaction Date",
+	"Created At",
+	"Updated At",
 }
 
-// ExportFilter narrows transaction and category rows to a UTC half-open date
-// range. Workspace and member rows remain present because they describe the
-// workspace that owns the export rather than transactions in the date range.
-type ExportFilter = DateRange
+// ExportFilter deliberately shares the transaction-list filter contract. The
+// export route parses the same query once, so downloaded rows cannot drift
+// from the active transaction filters in the client.
+type ExportFilter TransactionFilter
 
-// ExportWorkspaceCSV returns a display-only export for the records the actor
-// can access in the workspace. It deliberately writes from allowlisted
-// columns instead of marshaling storage models, keeping identifiers and
-// authentication material out of the file even when a model grows new fields.
-func (s *FinanceService) ExportWorkspaceCSV(ctx context.Context, workspaceID, actorID string, filters ...ExportFilter) ([]byte, string, error) {
-	membership, err := s.access.Require(ctx, workspaceID, actorID, model.PermExportData)
-	if err != nil {
+// ExportWorkspaceCSV returns only permission-scoped transactions. Columns are
+// explicitly allowlisted and use display values; storage identifiers are never
+// substituted for the user-facing transaction number, account, or contact.
+func (s *FinanceService) ExportWorkspaceCSV(
+	ctx context.Context,
+	workspaceID, actorID string,
+	filters ...ExportFilter,
+) ([]byte, string, error) {
+	if _, err := s.access.Require(ctx, workspaceID, actorID, model.PermExportData); err != nil {
 		return nil, "", err
 	}
-	dateRange := DateRange{}
+	filter := TransactionFilter{}
 	if len(filters) > 0 {
-		dateRange = filters[0]
+		filter = TransactionFilter(filters[0])
 	}
-	dateRange, err = normalizeDateRange(dateRange)
+	// Pagination controls are never accepted by an export. Every accessible row
+	// matching the semantic filters is written exactly once.
+	filter.Limit = 0
+	filter.Skip = 0
+
+	transactions, err := s.exportTransactions(ctx, workspaceID, actorID, filter)
 	if err != nil {
 		return nil, "", err
 	}
-	workspace, err := s.requireWorkspace(ctx, workspaceID)
+	accountNames, err := s.exportAccountNames(ctx, workspaceID, transactions)
 	if err != nil {
 		return nil, "", err
-	}
-
-	rows := make([][]string, 0)
-	rows = append(rows, exportRow(
-		"workspace", "workspace", workspace.Name, "", "", "", "", "",
-		workspace.Type, fmt.Sprintf("%d", workspace.FinancialMonth),
-		formatExportTime(workspace.CreatedAt), formatExportTime(workspace.UpdatedAt),
-		"", "", "", "", "", workspace.Currency, "", "", "", "",
-	))
-
-	if hasPermission(*membership, model.PermViewWorkspace) {
-		members, err := s.ListWorkspaceMembers(ctx, workspaceID, actorID)
-		if err != nil {
-			return nil, "", err
-		}
-		for _, member := range members {
-			rows = append(rows, exportRow(
-				"members", "member", member.Name, member.Email, member.Role,
-				strings.Join(member.Permissions, " "), member.Status,
-				formatExportTime(member.JoinedAt), "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-			))
-		}
-	}
-
-	if hasPermission(*membership, model.PermViewTransactions) {
-		transactions, err := s.exportTransactions(ctx, workspaceID, actorID, dateRange)
-		if err != nil {
-			return nil, "", err
-		}
-		categoryTotals := make(map[string]int64)
-		categoryCounts := make(map[string]int64)
-		for _, transaction := range transactions {
-			creatorName, creatorStatus := "", ""
-			if transaction.Creator != nil {
-				creatorName = transaction.Creator.Name
-				creatorStatus = transaction.Creator.Status
-			}
-			contactName, contactPhone, contactEmail := "", "", ""
-			if transaction.Contact != nil {
-				contactName, contactPhone, contactEmail = transaction.Contact.Name, transaction.Contact.Phone, transaction.Contact.Email
-			}
-			rows = append(rows, exportRow(
-				"transactions", "transaction", "", "", "", "", "", "", "", "",
-				formatExportTime(transaction.CreatedAt), formatExportTime(transaction.UpdatedAt),
-				formatExportTime(effectiveTransactionDate(transaction)), transaction.Merchant,
-				transaction.Category, transaction.Type, fmt.Sprintf("%d", transaction.AmountMinor),
-				transaction.Currency, transaction.Notes, creatorName, creatorStatus, "", transaction.Description, contactName, contactPhone, contactEmail,
-			))
-			if transaction.Type == "expense" {
-				category := valueOrDefault(strings.TrimSpace(transaction.Category), "Uncategorised")
-				categoryTotals[category], err = checkedAddMoney(categoryTotals[category], transaction.AmountMinor)
-				if err != nil {
-					return nil, "", err
-				}
-				categoryCounts[category]++
-			}
-		}
-
-		categories := make([]string, 0, len(categoryTotals))
-		for category := range categoryTotals {
-			categories = append(categories, category)
-		}
-		sort.Strings(categories)
-		for _, category := range categories {
-			rows = append(rows, exportRow(
-				"categories", "category", category, "", "", "", "", "", "", "", "", "", "", "",
-				category, "expense", fmt.Sprintf("%d", categoryTotals[category]), workspace.Currency,
-				"", "", "", fmt.Sprintf("%d", categoryCounts[category]),
-			))
-		}
 	}
 
 	var output bytes.Buffer
+	// A UTF-8 BOM keeps non-ASCII names and currency-adjacent text readable in
+	// spreadsheet programs that otherwise guess a legacy Windows encoding.
+	output.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(&output)
-	if err := writer.Write(workspaceExportHeaders); err != nil {
+	if err := writer.Write(transactionExportHeaders); err != nil {
 		return nil, "", err
 	}
-	for _, row := range rows {
+	for _, transaction := range transactions {
+		contactName := ""
+		if transaction.Contact != nil {
+			contactName = strings.TrimSpace(transaction.Contact.Name)
+		}
+		destinationName := accountNames[transaction.DestinationAccountID]
+		name := strings.TrimSpace(transaction.Merchant)
+		if name == "" && transaction.Type == "transfer" && destinationName != "" {
+			name = "Transfer to " + destinationName
+		}
+		if name == "" {
+			name = friendlyTransactionType(transaction.Type)
+		}
+		transactionType := strings.TrimSpace(transaction.Type)
+		if len(transaction.Splits) > 0 {
+			transactionType = model.TransactionSequenceSplit
+		}
+		row := []string{
+			transaction.TransactionID,
+			transactionType,
+			name,
+			contactName,
+			strings.TrimSpace(transaction.Description),
+			strings.TrimSpace(transaction.Notes),
+			formatMajorAmount(transaction.AmountMinor),
+			transaction.Currency,
+			strings.TrimSpace(transaction.Category),
+			accountNames[transaction.AccountID],
+			destinationName,
+			formatExportDate(effectiveTransactionDate(transaction)),
+			formatExportTimestamp(transaction.CreatedAt),
+			formatExportTimestamp(transaction.UpdatedAt),
+		}
 		if err := writer.Write(row); err != nil {
 			return nil, "", err
 		}
@@ -157,12 +115,15 @@ func (s *FinanceService) ExportWorkspaceCSV(ctx context.Context, workspaceID, ac
 		return nil, "", err
 	}
 
-	filename := safeWorkspaceExportFilename(workspace.Name, time.Now().UTC())
-	return output.Bytes(), filename, nil
+	return output.Bytes(), transactionExportFilename(filter, time.Now().UTC()), nil
 }
 
-func (s *FinanceService) exportTransactions(ctx context.Context, workspaceID, actorID string, dateRange DateRange) ([]model.Transaction, error) {
-	filter, empty, err := s.transactionQuery(ctx, workspaceID, actorID, TransactionFilter{From: dateRange.From, To: dateRange.To})
+func (s *FinanceService) exportTransactions(
+	ctx context.Context,
+	workspaceID, actorID string,
+	filter TransactionFilter,
+) ([]model.Transaction, error) {
+	query, empty, err := s.transactionQuery(ctx, workspaceID, actorID, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +134,7 @@ func (s *FinanceService) exportTransactions(ctx context.Context, workspaceID, ac
 	if err := s.store.FindMany(
 		ctx,
 		"transactions",
-		filter,
+		query,
 		&transactions,
 		0,
 		0,
@@ -190,37 +151,79 @@ func (s *FinanceService) exportTransactions(ctx context.Context, workspaceID, ac
 	return transactions, nil
 }
 
-func exportRow(values ...string) []string {
-	row := make([]string, len(workspaceExportHeaders))
-	copy(row, values)
-	return row
+func (s *FinanceService) exportAccountNames(
+	ctx context.Context,
+	workspaceID string,
+	transactions []model.Transaction,
+) (map[string]string, error) {
+	ids := make([]string, 0, len(transactions)*2)
+	seen := make(map[string]struct{}, len(transactions)*2)
+	for _, transaction := range transactions {
+		for _, id := range []string{transaction.AccountID, transaction.DestinationAccountID} {
+			if id == "" {
+				continue
+			}
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	result := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	var accounts []model.Account
+	if err := s.store.FindMany(
+		ctx,
+		"accounts",
+		repository.Filter{"workspace_id": workspaceID, "_id": repository.Filter{"$in": ids}},
+		&accounts,
+		int64(len(ids)),
+		0,
+		nil,
+	); err != nil {
+		return nil, err
+	}
+	for _, account := range accounts {
+		result[account.ID] = strings.TrimSpace(account.Name)
+	}
+	return result, nil
 }
 
-func formatExportTime(value time.Time) string {
+func formatMajorAmount(amountMinor int64) string {
+	sign := ""
+	if amountMinor < 0 {
+		sign = "-"
+		amountMinor = -amountMinor
+	}
+	return fmt.Sprintf("%s%d.%02d", sign, amountMinor/100, amountMinor%100)
+}
+
+func formatExportDate(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.UTC().Format(transactionExportDateFormat)
+}
+
+func formatExportTimestamp(value time.Time) string {
 	if value.IsZero() {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339)
 }
 
-func safeWorkspaceExportFilename(name string, now time.Time) string {
-	name = strings.ToLower(strings.TrimSpace(name))
-	var builder strings.Builder
-	separator := false
-	for _, char := range name {
-		if unicode.IsLetter(char) || unicode.IsDigit(char) {
-			if separator && builder.Len() > 0 {
-				builder.WriteByte('-')
-			}
-			builder.WriteRune(char)
-			separator = false
-			continue
+func transactionExportFilename(filter TransactionFilter, now time.Time) string {
+	period := now.UTC().Format("2006-01")
+	if filter.From != nil && filter.To != nil {
+		from := filter.From.UTC()
+		to := filter.To.UTC()
+		monthStart := time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)
+		if from.Equal(monthStart) && to.Equal(monthStart.AddDate(0, 1, 0)) {
+			period = from.Format("2006-01")
 		}
-		separator = builder.Len() > 0
 	}
-	base := strings.Trim(builder.String(), "-")
-	if base == "" {
-		base = "workspace"
-	}
-	return fmt.Sprintf("%s-export-%s.csv", base, now.UTC().Format(workspaceExportCSVDateFormat))
+	return "ledgerly-transactions-" + period + ".csv"
 }

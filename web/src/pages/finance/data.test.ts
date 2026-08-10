@@ -133,4 +133,18 @@ describe('finance data normalization', () => {
 
     expect(transaction.rawType).toBe('adjustment')
   })
+
+  it('preserves public transaction IDs and their user-facing scope', () => {
+    const [transaction] = normalizeFinanceData<Transaction[]>('transactions', [{
+      id: 'internal-transaction-a',
+      transactionId: '000042',
+      transactionIdScope: 'split',
+      type: 'expense',
+      amountMinor: 1250,
+      currency: 'INR',
+    }])
+
+    expect(transaction.transactionId).toBe('000042')
+    expect(transaction.transactionIdScope).toBe('split')
+  })
 })
