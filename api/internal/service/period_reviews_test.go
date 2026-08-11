@@ -130,12 +130,25 @@ func TestPeriodReviewValidation(t *testing.T) {
 		{From: "2026-03-02", To: "2026-03-01", Timezone: "UTC", Status: "closed"},
 		{From: "2025-01-01", To: "2026-01-02", Timezone: "UTC", Status: "closed"},
 		{From: "2026-01-01", To: "2026-01-02", Timezone: "Mars/Olympus", Status: "closed"},
+		{From: "2026-01-01", To: "2026-01-02", Timezone: "Local", Status: "closed"},
 		{From: "2026-01-01", To: "2026-01-02", Timezone: "UTC", Status: "draft"},
 	}
 	for _, input := range tests {
 		if _, _, err := normalizePeriodReviewInput(input, true); err == nil {
 			t.Fatalf("input %#v unexpectedly validated", input)
 		}
+	}
+}
+
+func TestPeriodReviewTimezoneAcceptsIANADataAndLinks(t *testing.T) {
+	for _, zone := range []string{"Etc/UTC", "US/Eastern", "Asia/Kolkata"} {
+		t.Run(zone, func(t *testing.T) {
+			if _, _, err := normalizePeriodReviewInput(PeriodReviewInput{
+				From: "2026-01-01", To: "2026-01-02", Timezone: zone, Status: "closed",
+			}, true); err != nil {
+				t.Fatalf("IANA zone %q rejected: %v", zone, err)
+			}
+		})
 	}
 }
 

@@ -30,6 +30,9 @@ func normalizePeriodReviewInput(input PeriodReviewInput, requireStatus bool) (Pe
 	input.To = strings.TrimSpace(input.To)
 	input.Timezone = strings.TrimSpace(input.Timezone)
 	input.Status = strings.ToLower(strings.TrimSpace(input.Status))
+	if input.Timezone == "Local" {
+		return input, periodBounds{}, &FieldError{Field: "timezone", Message: "must be a valid IANA timezone"}
+	}
 	location, err := time.LoadLocation(input.Timezone)
 	if err != nil || input.Timezone == "" {
 		return input, periodBounds{}, &FieldError{Field: "timezone", Message: "must be a valid IANA timezone"}

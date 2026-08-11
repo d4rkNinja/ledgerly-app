@@ -54,6 +54,16 @@ go vet ./...
 go build ./...
 ```
 
+Repository transaction integration tests are opt-in because they require a
+MongoDB replica set. Point `MONGO_TEST_URI` at a disposable test replica set;
+the tests create and drop uniquely named databases and fail on connection or
+transaction-topology errors. When the variable is absent, only those external
+MongoDB tests are skipped:
+
+```bash
+MONGO_TEST_URI='mongodb://localhost:27017/?replicaSet=rs0' go test ./internal/repository -run Integration -count=1
+```
+
 MongoDB must run as a replica set because transaction creation atomically inserts the immutable financial record, claims its idempotency key, and adjusts account balances. Startup and `/ready` inspect the Mongo topology and reject a standalone server that cannot execute those transactions. The included Compose file initialises a loopback-only single-node development replica set.
 
 ## Architecture

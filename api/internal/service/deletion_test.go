@@ -224,6 +224,9 @@ func TestDeleteTransactionReversesExpenseBalancesAndAudits(t *testing.T) {
 	if len(store.audits) != 1 || store.audits[0].Action != "transaction.deleted" {
 		t.Fatalf("audit events = %#v", store.audits)
 	}
+	if got := store.audits[0].Metadata["type"]; got != "expense" {
+		t.Fatalf("generic audit metadata type = %#v, want expense", got)
+	}
 	if store.txRuns != 1 {
 		t.Fatalf("transaction runs = %d, want 1", store.txRuns)
 	}

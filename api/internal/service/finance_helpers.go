@@ -231,7 +231,13 @@ func (s *FinanceService) advanceLedgerVersion(ctx context.Context, workspaceID s
 }
 
 func transactionRevisionAudit(workspaceID, actorID, action string, transactionID string, before, after *model.TransactionRevisionSnapshot, ledgerVersion int64) *model.AuditEvent {
-	event := newAuditEvent(workspaceID, actorID, action, "transaction", transactionID, nil)
+	transactionType := ""
+	if after != nil {
+		transactionType = after.Type
+	} else if before != nil {
+		transactionType = before.Type
+	}
+	event := newAuditEvent(workspaceID, actorID, action, "transaction", transactionID, map[string]any{"type": transactionType})
 	event.LedgerVersion = ledgerVersion
 	event.Before = before
 	event.After = after
