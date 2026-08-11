@@ -1,0 +1,482 @@
+.period-review-card {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  padding: clamp(var(--space-4), 4.5vw, var(--space-6));
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-surface);
+}
+
+.period-review-card-changed {
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--warning-soft) 68%, transparent),
+      transparent 72%
+    ),
+    var(--surface-raised);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--warning) 34%, transparent),
+    var(--shadow-surface);
+}
+
+.period-review-copy,
+.period-review-copy > div,
+.period-review-member-change,
+.period-review-member-change-copy,
+.period-review-member-change-copy > div,
+.period-review-title-row,
+.period-review-actions,
+.period-change-item,
+.period-change-item header,
+.period-change-item header > div,
+.period-change-version,
+.period-change-version dl,
+.period-change-audit,
+.period-change-comparison {
+  min-width: 0;
+}
+
+.period-review-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.period-review-copy > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.period-review-icon {
+  width: var(--target-min);
+  height: var(--target-min);
+  flex: 0 0 var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+
+.period-review-card-changed .period-review-icon {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+
+.period-review-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.period-review-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.period-review-card h2,
+.period-review-member-change h3,
+.period-change-item h3,
+.period-change-version h4 {
+  margin: 0;
+  color: var(--ink);
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.period-review-card h2 {
+  font-size: var(--text-section);
+}
+
+.period-review-member-change h3 {
+  font-size: var(--text-md);
+}
+
+.period-review-card p,
+.period-review-dialog-status,
+.period-change-item p {
+  margin: 0;
+  color: var(--ink-subtle);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.period-review-deltas {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.period-review-metadata {
+  grid-column: 1 / -1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--ink-subtle);
+  font-size: var(--text-xs);
+}
+
+.period-review-metadata span {
+  max-width: 100%;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  overflow-wrap: anywhere;
+}
+
+.period-review-deltas > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-small);
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+
+.period-review-member-change {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-surface);
+  background: color-mix(in srgb, var(--warning-soft) 72%, var(--surface-raised));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warning) 70%, transparent);
+}
+
+.period-review-member-change-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.period-review-member-change-copy > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.period-review-member-change-icon {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning-soft) 78%, var(--surface-raised));
+}
+
+.period-review-member-change-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.period-review-deltas dt,
+.period-change-audit dt,
+.period-change-version dt {
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.period-review-deltas dd,
+.period-change-audit dd,
+.period-change-version dd,
+.period-change-version-number {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.period-review-deltas dd {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+
+.period-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.period-review-actions .button {
+  min-height: var(--target-min);
+}
+
+.period-review-error,
+.period-review-success {
+  grid-column: 1 / -1;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+}
+
+.period-review-error {
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+
+.period-review-success {
+  color: var(--positive) !important;
+  background: var(--positive-soft);
+}
+
+.period-review-dialog-status {
+  padding-block: var(--space-4);
+}
+
+.period-change-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+}
+
+.period-change-item {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--line) 84%, transparent),
+    0 2px 8px rgb(32 62 44 / 0.05);
+}
+
+.period-change-item-deleted {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--danger) 70%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--danger) 20%, var(--line));
+}
+
+.period-change-item-edited {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--warning) 70%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--warning) 18%, var(--line));
+}
+
+.period-change-item-added {
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--positive) 70%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--positive) 18%, var(--line));
+}
+
+.period-change-item header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.period-change-item header > div {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.period-change-item h3 {
+  font-size: var(--text-md);
+}
+
+.period-change-version-number {
+  flex: 0 1 auto;
+  color: var(--ink-faint);
+  font-size: var(--text-xs);
+  text-align: end;
+}
+
+.period-change-audit,
+.period-change-version dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--line);
+}
+
+.period-change-audit > div,
+.period-change-version dl > div {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.15rem;
+  padding: var(--space-3);
+  background: var(--surface-raised);
+}
+
+.period-change-item > .period-review-deltas {
+  grid-column: auto;
+}
+
+.period-change-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.period-change-version {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-surface);
+  background: var(--surface-soft);
+}
+
+.period-change-version dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.period-change-version-wide {
+  grid-column: 1 / -1;
+}
+
+.period-change-version-empty,
+.period-change-version-redacted {
+  min-height: 7rem;
+  align-content: center;
+  color: var(--ink-subtle);
+  text-align: center;
+}
+
+.period-change-version-redacted {
+  background: color-mix(in srgb, var(--warning-soft) 62%, var(--surface-soft));
+}
+
+.period-change-fields,
+.period-change-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.period-change-fields {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.period-change-fields li {
+  max-width: 100%;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-pill);
+  color: var(--ink-subtle);
+  background: var(--surface-soft);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.period-change-pagination {
+  justify-content: center;
+  padding-block: var(--space-3) var(--space-1);
+}
+
+@media (max-width: 680px) {
+  .period-review-card {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+
+  .period-review-member-change {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .period-review-member-change .period-review-actions {
+    justify-content: stretch;
+  }
+
+  .period-review-actions {
+    justify-content: stretch;
+  }
+
+  .period-review-actions > .button {
+    flex: 1 1 9rem;
+  }
+
+  .period-review-deltas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .period-change-item {
+    padding: var(--space-3);
+  }
+
+  .period-change-item header {
+    display: grid;
+  }
+
+  .period-change-version-number {
+    text-align: start;
+  }
+
+  .period-change-audit,
+  .period-change-version dl,
+  .period-change-comparison {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .period-change-version-wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .period-review-card {
+    padding: var(--space-3);
+    border-radius: var(--radius-surface);
+  }
+
+  .period-review-copy {
+    gap: var(--space-2);
+  }
+
+  .period-review-deltas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .period-review-actions > .button {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .period-review-card,
+  .period-change-item {
+    scroll-behavior: auto;
+  }
+}
+
+@media (forced-colors: active) {
+  .period-review-card,
+  .period-change-item,
+  .period-change-version {
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+
+  .period-review-icon {
+    border: 1px solid CanvasText;
+  }
+}

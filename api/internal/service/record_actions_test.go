@@ -14,19 +14,20 @@ import (
 )
 
 type recordActionStore struct {
-	workspace    model.Workspace
-	memberships  map[string]model.Membership
-	users        map[string]model.User
-	vaults       map[string]model.Vault
-	accounts     map[string]model.Account
-	transactions map[string]model.Transaction
-	budgets      map[string]model.Budget
-	goals        map[string]model.Goal
-	audits       []model.AuditEvent
-	lastPipeline repository.Pipeline
-	updated      []string
-	deleted      []string
-	txRuns       int
+	workspace         model.Workspace
+	memberships       map[string]model.Membership
+	users             map[string]model.User
+	vaults            map[string]model.Vault
+	accounts          map[string]model.Account
+	transactions      map[string]model.Transaction
+	budgets           map[string]model.Budget
+	goals             map[string]model.Goal
+	audits            []model.AuditEvent
+	lastPipeline      repository.Pipeline
+	updated           []string
+	deleted           []string
+	txRuns            int
+	beforeTransaction func()
 }
 
 func (s *recordActionStore) Insert(_ context.Context, collection string, document any) error {
@@ -69,7 +70,7 @@ func (s *recordActionStore) FindOne(_ context.Context, collection string, filter
 		}
 	case "transactions":
 		id, _ := filter["_id"].(string)
-		if item, ok := s.transactions[id]; ok && recordWorkspaceMatch(item.WorkspaceID, filter) {
+		if item, ok := s.transactions[id]; ok && matchesTransaction(item, filter) {
 			*destination.(*model.Transaction) = item
 			return nil
 		}
@@ -263,6 +264,10 @@ func (s *recordActionStore) Count(context.Context, string, repository.Filter) (i
 
 func (s *recordActionStore) WithTransaction(ctx context.Context, fn repository.TransactionFunc) (any, error) {
 	s.txRuns++
+	if s.beforeTransaction != nil {
+		s.beforeTransaction()
+		s.beforeTransaction = nil
+	}
 	return fn(ctx)
 }
 
@@ -315,23 +320,56 @@ func matchesIDFilter(id string, raw any) bool {
 }
 
 func matchesVault(item model.Vault, filter repository.Filter) bool {
+	if clauses, ok := filter["$or"].([]repository.Filter); ok && len(clauses) > 0 {
+		matched := false
+		for _, clause := range clauses {
+			if matchesVault(item, clause) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
 	if !recordWorkspaceMatch(item.WorkspaceID, filter) || !matchesArchived(item.Archived, filter) {
 		return false
 	}
 	if currency, ok := filter["currency"].(string); ok && item.Currency != currency {
 		return false
 	}
-	if privacy, ok := filter["privacy"].(string); ok && item.Privacy != privacy {
+	if privacy, ok := filter["privacy"].(string); ok && item.Privacy != privacy && !(privacy == "workspace" && item.Privacy == "") {
+		return false
+	}
+	if ownerID, ok := filter["owner_id"].(string); ok && item.OwnerID != ownerID {
 		return false
 	}
 	return matchesIDFilter(item.ID, filter["_id"])
 }
 
 func matchesAccount(item model.Account, filter repository.Filter) bool {
+	if clauses, ok := filter["$or"].([]repository.Filter); ok && len(clauses) > 0 {
+		matched := false
+		for _, clause := range clauses {
+			if matchesAccount(item, clause) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
 	if !recordWorkspaceMatch(item.WorkspaceID, filter) || !matchesArchived(item.Archived, filter) {
 		return false
 	}
 	if !matchesIDFilter(item.ID, filter["_id"]) || !matchesIDFilter(item.VaultID, filter["vault_id"]) {
+		return false
+	}
+	if privacy, ok := filter["privacy"].(string); ok && item.Privacy != privacy && !(privacy == "workspace" && item.Privacy == "") {
+		return false
+	}
+	if ownerID, ok := filter["owner_id"].(string); ok && item.OwnerID != ownerID {
 		return false
 	}
 	return true
@@ -366,7 +404,10 @@ func matchesTransaction(item model.Transaction, filter repository.Filter) bool {
 	if kind, ok := filter["type"].(string); ok && item.Type != kind {
 		return false
 	}
-	if privacy, ok := filter["privacy"].(string); ok && item.Privacy != privacy {
+	if privacy, ok := filter["privacy"].(string); ok && item.Privacy != privacy && !(privacy == "workspace" && item.Privacy == "") {
+		return false
+	}
+	if createdBy, ok := filter["created_by"].(string); ok && item.CreatedBy != createdBy {
 		return false
 	}
 	if rawDate, hasDate := filter["occurred_at"]; hasDate {
@@ -594,6 +635,9 @@ func TestUpdateTransactionRebalancesChangedAccountsAndAudits(t *testing.T) {
 	if len(store.audits) != 1 || store.audits[0].Action != "transaction.updated" {
 		t.Fatalf("audits = %#v", store.audits)
 	}
+	if got := store.audits[0].Metadata["type"]; got != "expense" {
+		t.Fatalf("generic audit metadata type = %#v, want expense", got)
+	}
 	if store.txRuns != 1 {
 		t.Fatalf("transaction runs = %d, want 1", store.txRuns)
 	}
@@ -637,6 +681,39 @@ func TestUpdateTransactionPreservesOmittedTagsAndSplits(t *testing.T) {
 	}
 	if !reflect.DeepEqual(updated.Splits, []model.Split{{UserID: "owner-a", AmountMinor: 1_000}}) {
 		t.Fatalf("updated splits = %#v, want preserved splits", updated.Splits)
+	}
+}
+
+func TestUpdateTransactionRebuildsFromFreshStateAndAuditsSplitChanges(t *testing.T) {
+	finance, store := newRecordActionService()
+	store.transactions["transaction-a"] = model.Transaction{
+		ID: "transaction-a", WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "account-a",
+		CreatedBy: "owner-a", Type: "expense", AmountMinor: 1_000, Currency: "INR", Privacy: "workspace",
+		Tags: []string{"initial"}, Splits: []model.Split{{UserID: "owner-a", AmountMinor: 1_000}},
+		OccurredAt: time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC),
+	}
+	store.beforeTransaction = func() {
+		current := store.transactions["transaction-a"]
+		current.Tags = []string{"concurrent"}
+		store.transactions[current.ID] = current
+	}
+
+	updated, err := finance.UpdateTransaction(context.Background(), "workspace-a", "owner-a", "transaction-a", TransactionInput{
+		AccountID: "account-a", Type: "expense", AmountMinor: 1_000, Currency: "INR", Privacy: "workspace",
+		Merchant: "Fresh merchant", Splits: []model.Split{{UserID: "member-a", AmountMinor: 1_000}},
+		OccurredAt: time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("UpdateTransaction: %v", err)
+	}
+	if !reflect.DeepEqual(updated.Tags, []string{"concurrent"}) {
+		t.Fatalf("updated tags = %#v, want fresh concurrent value", updated.Tags)
+	}
+	if len(store.audits) != 1 || !store.audits[0].SplitAllocationChanged {
+		t.Fatalf("split allocation audit = %#v", store.audits)
+	}
+	if !reflect.DeepEqual(store.audits[0].ChangedFields, []string{"merchant"}) {
+		t.Fatalf("changed fields = %#v, want merchant", store.audits[0].ChangedFields)
 	}
 }
 

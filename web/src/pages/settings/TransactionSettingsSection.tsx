@@ -18,6 +18,7 @@ import {
   type TransactionSequenceSetting,
 } from '@/domain/transaction-categories'
 import { api, ApiError } from '@/lib/api-client'
+import { invalidatePeriodReviewQueries } from '@/lib/period-review-query'
 import {
   categoryWriteBody,
   sequenceUpdateBody,
@@ -422,9 +423,12 @@ function CategoriesEditor({ mode }: { mode: TransactionCategoryMode }) {
             { transactionType: mode, ...body },
           )
     },
-    onSuccess: () => {
+    onSuccess: (_updated, variables) => {
       setEditing(null)
       refresh()
+      if (!demoMode && variables.category) {
+        void invalidatePeriodReviewQueries(queryClient, workspace.id)
+      }
     },
   })
 
@@ -489,6 +493,9 @@ function CategoriesEditor({ mode }: { mode: TransactionCategoryMode }) {
       setDeleteTarget(null)
       setReplacementId('')
       refresh()
+      if (!demoMode) {
+        void invalidatePeriodReviewQueries(queryClient, workspace.id)
+      }
     },
   })
 

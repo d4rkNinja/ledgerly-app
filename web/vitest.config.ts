@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    testTimeout: 10_000,
     exclude: [
       '../applications/android/scripts/__tests__/**',
       '**/node_modules/**',

@@ -115,6 +115,7 @@ const liveWorkspace = {
   permissions: [
     "view_transactions",
     "create_transactions",
+    "delete_all_transactions",
     "export_data",
   ] as Permission[],
 };
@@ -338,24 +339,31 @@ function renderLiveTransactionDialog(
   dialogAccounts = accounts,
   initialMode: "expense" | "income" | "transfer" | "split" = "expense",
 ) {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <AppContext.Provider value={liveAppValue}>
-        <MotionConfig reducedMotion="always">
-          <TransactionDialog
-            open
-            initialMode={initialMode}
-            accounts={dialogAccounts}
-            onClose={vi.fn()}
-            onDemoAdded={vi.fn()}
-          />
-        </MotionConfig>
-      </AppContext.Provider>
-    </QueryClientProvider>,
-  );
+  const client = new QueryClient();
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <AppContext.Provider value={liveAppValue}>
+          <MotionConfig reducedMotion="always">
+            <TransactionDialog
+              open
+              initialMode={initialMode}
+              accounts={dialogAccounts}
+              onClose={vi.fn()}
+              onDemoAdded={vi.fn()}
+            />
+          </MotionConfig>
+        </AppContext.Provider>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
-function renderHome(initialEntry = "/app/home?month=2026-07") {
+function renderHome(
+  initialEntry = "/app/home?month=2026-07",
+  contextValue: AppContextValue = liveAppValue,
+) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -365,7 +373,7 @@ function renderHome(initialEntry = "/app/home?month=2026-07") {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <AppContext.Provider value={liveAppValue}>
+        <AppContext.Provider value={contextValue}>
           <MotionConfig reducedMotion="always">
             <HomePage />
             <LocationProbe />
@@ -383,18 +391,21 @@ function renderTransactions(initialEntry = "/app/transactions") {
       mutations: { retry: false },
     },
   });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <AppContext.Provider value={liveAppValue}>
-          <MotionConfig reducedMotion="always">
-            <TransactionsPage />
-            <LocationProbe />
-          </MotionConfig>
-        </AppContext.Provider>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <AppContext.Provider value={liveAppValue}>
+            <MotionConfig reducedMotion="always">
+              <TransactionsPage />
+              <LocationProbe />
+            </MotionConfig>
+          </AppContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 describe("TransactionDialog categories", () => {
@@ -934,7 +945,9 @@ describe("TransactionsPage date filters", () => {
       }
       return Promise.resolve([]);
     });
-    renderLiveTransactionDialog();
+    apiMocks.post.mockResolvedValue({ id: "transaction-manual" });
+    const { client } = renderLiveTransactionDialog();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
 
     expect(
       await screen.findByRole("button", { name: "Client meals" }),
@@ -962,6 +975,11 @@ describe("TransactionsPage date filters", () => {
         }),
         expect.any(Object),
       );
+    });
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["period-reviews", "workspace-home"],
+      });
     });
   });
 
@@ -1105,6 +1123,53 @@ describe("TransactionsPage date filters", () => {
       value: undefined,
     });
   });
+
+  it("invalidates period reviews after deleting a live transaction", async () => {
+    const user = userEvent.setup();
+    apiMocks.delete.mockResolvedValue(undefined);
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.endsWith("/accounts")) return Promise.resolve([]);
+      if (path.endsWith("/transactions")) {
+        return Promise.resolve([
+          {
+            id: "transaction-delete",
+            merchant: "Duplicate lunch",
+            category: "Client meals",
+            type: "expense",
+            amountMinor: 4800,
+            currency: "INR",
+            accountId: "account-home",
+            occurredAt: "2026-08-08T00:00:00.000Z",
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+
+    const { client } = renderTransactions();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    await user.click(
+      await screen.findByRole("button", { name: /Duplicate lunch/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "Delete transaction" }));
+    await user.click(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: "Delete transaction",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(apiMocks.delete).toHaveBeenCalledWith(
+        "/workspaces/workspace-home/transactions/transaction-delete",
+      );
+    });
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["period-reviews", "workspace-home"],
+      });
+    });
+  });
 });
 
 describe("HomePage monthly summary", () => {
@@ -1162,6 +1227,34 @@ describe("HomePage monthly summary", () => {
     expect(
       balance.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("keeps the period selector and review reachable when no accounts are active", async () => {
+    const noAccountAppValue: AppContextValue = {
+      ...liveAppValue,
+      workspace: {
+        ...liveWorkspace,
+        permissions: [
+          ...(liveWorkspace.permissions ?? []),
+          "view_balances",
+        ],
+      },
+    };
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.endsWith("/accounts")) return Promise.resolve([]);
+      if (path.includes("/period-reviews?")) return Promise.resolve([]);
+      if (path.endsWith("/budgets") || path.endsWith("/transactions")) {
+        return Promise.resolve([]);
+      }
+      if (path.includes("/dashboard")) return Promise.resolve(monthlyDashboard);
+      return Promise.resolve([]);
+    });
+
+    renderHome("/app/home?month=2026-07", noAccountAppValue);
+
+    expect(await screen.findByRole("heading", { name: "No accounts yet" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Dashboard period")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Period review" })).toBeInTheDocument();
   });
 
   it("shows selected-month cashflow by default and can switch to year totals", async () => {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MotionConfig } from 'motion/react'
 import { MemoryRouter } from 'react-router'
@@ -150,12 +150,21 @@ describe('bank account management', () => {
     const user = userEvent.setup()
     renderWithApp(<AccountCreateDialog open onClose={vi.fn()} />)
 
-    await user.type(screen.getByLabelText('Account name'), 'Travel savings')
-    await user.type(screen.getByLabelText('Bank name'), 'Example Bank')
-    await user.type(screen.getByLabelText('Account identifier'), '•••• 9012')
-    await user.clear(screen.getByLabelText('Opening balance'))
-    await user.type(screen.getByLabelText('Opening balance'), '1250')
-    await user.type(screen.getByLabelText('Notes'), 'Trip fund')
+    fireEvent.change(screen.getByLabelText('Account name'), {
+      target: { value: 'Travel savings' },
+    })
+    fireEvent.change(screen.getByLabelText('Bank name'), {
+      target: { value: 'Example Bank' },
+    })
+    fireEvent.change(screen.getByLabelText('Account identifier'), {
+      target: { value: '•••• 9012' },
+    })
+    fireEvent.change(screen.getByLabelText('Opening balance'), {
+      target: { value: '1250' },
+    })
+    fireEvent.change(screen.getByLabelText('Notes'), {
+      target: { value: 'Trip fund' },
+    })
     await user.click(screen.getByRole('button', { name: 'Create account' }))
 
     await waitFor(() => {
@@ -186,8 +195,9 @@ describe('bank account management', () => {
     expect(screen.getByLabelText('Current balance')).toHaveTextContent('1,750')
     expect(screen.getByLabelText('Bank name')).toHaveValue('Example Bank')
     expect(screen.getByLabelText('Account identifier')).toHaveValue('•••• 1842')
-    await user.clear(screen.getByLabelText('Bank name'))
-    await user.type(screen.getByLabelText('Bank name'), 'Updated Bank')
+    fireEvent.change(screen.getByLabelText('Bank name'), {
+      target: { value: 'Updated Bank' },
+    })
     await user.click(screen.getByRole('button', { name: 'Save account' }))
 
     await waitFor(() => {

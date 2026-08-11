@@ -81,6 +81,16 @@ func (a *API) transactionCategoryError(w http.ResponseWriter, err error) {
 	case errors.As(err, &duplicate):
 		writeError(w, http.StatusConflict, "category_name_conflict", duplicate.Error(), nil)
 	case errors.As(err, &inUse):
+		if !inUse.UsageCountExact {
+			writeError(
+				w,
+				http.StatusConflict,
+				"category_in_use",
+				fmt.Sprintf("Category %q is in use. Choose a replacement category, or disable it instead.", inUse.Name),
+				nil,
+			)
+			return
+		}
 		noun := "transactions"
 		if inUse.UsageCount == 1 {
 			noun = "transaction"

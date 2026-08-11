@@ -32,6 +32,8 @@ func TestActivatedFeatureRouteContracts(t *testing.T) {
 		{path: "/api/v1/workspaces/workspace-a/accounts/account-a/share", wantMethods: []string{http.MethodPost}},
 		{path: "/api/v1/workspaces/workspace-a/transactions/transaction-a", wantMethods: []string{http.MethodGet, http.MethodPatch, http.MethodDelete}},
 		{path: "/api/v1/workspaces/workspace-a/transactions/transaction-a/share", wantMethods: []string{http.MethodPost}},
+		{path: "/api/v1/workspaces/workspace-a/period-reviews", wantMethods: []string{http.MethodGet, http.MethodPost}},
+		{path: "/api/v1/workspaces/workspace-a/period-reviews/review-a/changes", wantMethods: []string{http.MethodGet}},
 		{path: "/api/v1/workspaces/workspace-a/transaction-sequences", wantMethods: []string{http.MethodGet}},
 		{path: "/api/v1/workspaces/workspace-a/transaction-sequences/expense", wantMethods: []string{http.MethodPatch}},
 		{path: "/api/v1/workspaces/workspace-a/transaction-categories", wantMethods: []string{http.MethodGet, http.MethodPost}},

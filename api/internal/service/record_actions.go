@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -236,39 +237,25 @@ func (s *FinanceService) GetTransaction(ctx context.Context, workspaceID, actorI
 }
 
 func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, actorID, transactionID string, input TransactionInput) (*model.Transaction, error) {
-	transaction, err := s.getTransactionForMutation(ctx, workspaceID, actorID, transactionID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.requireTransactionEditPermission(ctx, workspaceID, actorID, *transaction); err != nil {
-		return nil, err
-	}
-	input = preserveOmittedTransactionFields(input, *transaction)
-	next, sourceAccount, destinationAccount, err := s.transactionFromInput(ctx, workspaceID, actorID, input, transaction)
-	if err != nil {
-		return nil, err
-	}
-	oldSource, oldDestination, err := s.transactionAccountsForBalance(ctx, workspaceID, *transaction)
-	if err != nil {
-		return nil, err
-	}
-	now := time.Now().UTC()
-	next.ID = transaction.ID
-	next.WorkspaceID = transaction.WorkspaceID
-	next.CreatedBy = transaction.CreatedBy
-	next.CreatedAt = transaction.CreatedAt
-	next.UpdatedAt = now
-
 	result, err := s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
-		var current model.Transaction
-		if err := s.store.FindOne(transactionCtx, "transactions", repository.Filter{
-			"_id": transaction.ID, "workspace_id": workspaceID,
-		}, &current); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				return nil, ErrNotFound
-			}
+		current, err := s.getTransactionForMutation(transactionCtx, workspaceID, actorID, transactionID)
+		if err != nil {
 			return nil, err
 		}
+		if err := s.requireTransactionEditPermission(transactionCtx, workspaceID, actorID, *current); err != nil {
+			return nil, err
+		}
+		preservedInput := preserveOmittedTransactionFields(input, *current)
+		next, _, _, err := s.transactionFromInput(transactionCtx, workspaceID, actorID, preservedInput, current)
+		if err != nil {
+			return nil, err
+		}
+		now := time.Now().UTC()
+		next.ID = current.ID
+		next.WorkspaceID = current.WorkspaceID
+		next.CreatedBy = current.CreatedBy
+		next.CreatedAt = current.CreatedAt
+		next.UpdatedAt = now
 		if next.TransactionID != current.TransactionID {
 			sequenceStore, ok := s.store.(repository.TransactionSequenceStore)
 			if ok {
@@ -282,22 +269,42 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 				}
 			}
 		}
-		if err := s.applyTransactionBalanceChange(transactionCtx, current, oldSource, oldDestination, true, now); err != nil {
+		oldSource, oldDestination, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, *current)
+		if err != nil {
 			return nil, err
 		}
-		if err := s.applyTransactionBalanceChange(transactionCtx, next, sourceAccount, destinationAccount, false, now); err != nil {
+		currentNextSource, currentNextDestination, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, next)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.applyTransactionBalanceChange(transactionCtx, *current, oldSource, oldDestination, true, now); err != nil {
+			return nil, err
+		}
+		if err := s.applyTransactionBalanceChange(transactionCtx, next, currentNextSource, currentNextDestination, false, now); err != nil {
 			return nil, err
 		}
 		var updated model.Transaction
 		if err := s.store.UpdateOne(transactionCtx, "transactions", repository.Filter{
-			"_id": transaction.ID, "workspace_id": workspaceID,
+			"_id": current.ID, "workspace_id": workspaceID,
 		}, repository.Filter{"$set": transactionUpdateFields(next)}, &updated); err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
 				return nil, ErrNotFound
 			}
 			return nil, err
 		}
-		if err := s.audit(transactionCtx, workspaceID, actorID, "transaction.updated", "transaction", transaction.ID, map[string]any{"type": next.Type}); err != nil {
+		ledgerVersion, err := s.advanceLedgerVersion(transactionCtx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		audit := transactionRevisionAudit(
+			workspaceID, actorID, "transaction.updated", current.ID,
+			model.NewTransactionRevisionSnapshot(current), model.NewTransactionRevisionSnapshot(&updated), ledgerVersion,
+		)
+		audit.SplitAllocationChanged = model.TransactionSplitAllocationChanged(current, &updated)
+		if !slices.Equal(current.Tags, updated.Tags) {
+			audit.ChangedFields = append(audit.ChangedFields, "tags")
+		}
+		if err := s.store.Insert(transactionCtx, "audit_events", audit); err != nil {
 			return nil, err
 		}
 		return &updated, nil
@@ -342,7 +349,22 @@ func preserveOmittedTransactionFields(input TransactionInput, existing model.Tra
 func (s *FinanceService) getTransactionForMutation(ctx context.Context, workspaceID, actorID, transactionID string) (*model.Transaction, error) {
 	// The mutation path deliberately uses the same visibility scope as GET so
 	// edit-all permissions never reveal or mutate a private, inaccessible vault.
-	return s.GetTransaction(ctx, workspaceID, actorID, transactionID)
+	filter, empty, err := s.transactionQuery(ctx, workspaceID, actorID, TransactionFilter{})
+	if err != nil {
+		return nil, err
+	}
+	if empty {
+		return nil, ErrNotFound
+	}
+	filter["_id"] = transactionID
+	var transaction model.Transaction
+	if err := s.store.FindOne(ctx, "transactions", filter, &transaction); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &transaction, nil
 }
 
 func (s *FinanceService) requireTransactionEditPermission(ctx context.Context, workspaceID, actorID string, transaction model.Transaction) error {

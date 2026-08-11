@@ -88,6 +88,7 @@ import { api, ApiError } from '@/lib/api-client'
 import { SPRING_PRESS } from '@/lib/ease'
 import { downloadWorkspaceExport } from '@/lib/export'
 import { formatDate, formatMoney } from '@/lib/format'
+import { invalidatePeriodReviewQueries } from '@/lib/period-review-query'
 import { matchesTransactionSearch } from '@/lib/search'
 import { buildSafeTextSharePayload } from '@/lib/share'
 import {
@@ -147,6 +148,7 @@ import {
   type DashboardPeriodMode,
   type DashboardPeriodValue,
 } from './period-selector'
+import { PeriodReviewCard } from './period-review'
 import { RecordActionDrawer } from './record-action-drawer'
 import { TransactionEditDialog } from './record-edit-dialogs'
 
@@ -841,6 +843,7 @@ export function HomePage() {
       queryClient.invalidateQueries({ queryKey: ['budgets', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['insights', workspace.id] }),
+      invalidatePeriodReviewQueries(queryClient, workspace.id),
     ])
   }
   const selectedMonthLabel = monthLabel(selectedMonth)
@@ -916,6 +919,16 @@ export function HomePage() {
           title={`Good morning, ${userName.split(' ')[0]}`}
           description="Add an account before recording money in this workspace."
         />
+        <PeriodSelector
+          value={period}
+          onChange={updatePeriod}
+          onClear={clearPeriod}
+        />
+        <PeriodReviewCard
+          workspace={workspace}
+          demoMode={demoMode}
+          period={period}
+        />
         <EmptyState
           icon={<WalletCards />}
           title="No accounts yet"
@@ -944,6 +957,11 @@ export function HomePage() {
         value={period}
         onChange={updatePeriod}
         onClear={clearPeriod}
+      />
+      <PeriodReviewCard
+        workspace={workspace}
+        demoMode={demoMode}
+        period={period}
       />
       {!canCreateTransactions ? (
         <InfoNotice>
@@ -2088,6 +2106,7 @@ export function TransactionDialog({
         queryClient.invalidateQueries({
           queryKey: ['insights', workspace.id],
         }),
+        invalidatePeriodReviewQueries(queryClient, workspace.id),
       ])
       if (!mounted.current) return
       setFeedback({
@@ -3141,6 +3160,7 @@ export function TransactionsPage() {
       queryClient.invalidateQueries({ queryKey: ['budgets', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['insights', workspace.id] }),
+      invalidatePeriodReviewQueries(queryClient, workspace.id),
     ])
   }
 

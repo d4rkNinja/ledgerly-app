@@ -28,6 +28,7 @@ const (
 	goalActionsCollection           = "goal_action_idempotency"
 	expenseClaimsCollection         = "expense_claims"
 	notificationsCollection         = "notifications"
+	periodReviewsCollection         = "period_reviews"
 	auditEventsCollection           = "audit_events"
 	contactsCollection              = "contacts"
 	savedTransactionNamesCollection = "saved_transaction_names"
@@ -222,10 +223,28 @@ func mongoIndexSpecifications() []collectionIndexes {
 			},
 		},
 		{
+			collection: periodReviewsCollection,
+			models: []mongo.IndexModel{
+				// Checkpoints are immutable generations, so this index must not be
+				// unique. Re-reviewing the same civil period deliberately inserts a
+				// new row with a later cutoff instead of rewriting history. Timezone
+				// is stored as evidence but is not part of period identity.
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "scope", Value: 1}, {Key: "scope_actor_id", Value: 1}, {Key: "from", Value: 1}, {Key: "to", Value: 1}, {Key: "cutoff_ledger_version", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("period_review_generation_history")},
+				// Listing a civil period can return the caller's member checkpoint
+				// and an authorized workspace checkpoint. Keep that access pattern
+				// independent of the timezone currently reported by the client.
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "from", Value: 1}, {Key: "to", Value: 1}, {Key: "cutoff_ledger_version", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("period_review_period_history")},
+			},
+		},
+		{
 			collection: auditEventsCollection,
 			models: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_audit")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_audit_history")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("workspace_transaction_revision_ledger")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "before.currency", Value: 1}, {Key: "before.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("period_revision_before_summary")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "after.currency", Value: 1}, {Key: "after.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("period_revision_after_summary")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "entity_id", Value: 1}, {Key: "ledger_version", Value: 1}}, Options: options.Index().SetName("transaction_revision_history")},
 			},
 		},
 	}

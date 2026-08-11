@@ -27,6 +27,7 @@ import type {
 } from '@/domain/types'
 import { formatDate, formatMoney } from '@/lib/format'
 import { ApiError, api } from '@/lib/api-client'
+import { invalidatePeriodReviewQueries } from '@/lib/period-review-query'
 import {
   dateOnlyToUtcDate,
   isDateOnly,
@@ -167,13 +168,16 @@ function GoalActionDialog({
   const selectedAccount = accounts.find((account) => account.id === accountId)
   const availableDestinations = accounts.filter((account) => account.id !== accountId)
 
-  const invalidate = async () => {
+  const invalidate = async (includePeriodReview: boolean) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['goals', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['transactions', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['accounts', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard', workspace.id] }),
       queryClient.invalidateQueries({ queryKey: ['insights', workspace.id] }),
+      ...(includePeriodReview
+        ? [invalidatePeriodReviewQueries(queryClient, workspace.id)]
+        : []),
     ])
   }
 
@@ -243,7 +247,7 @@ function GoalActionDialog({
           { 'Idempotency-Key': actionKey() },
         )
       }
-      await invalidate()
+      await invalidate(mode === 'transaction')
       onComplete()
     } catch (error) {
       setFeedback(goalActionError(error, 'The goal action could not be saved. No changes were made.'))

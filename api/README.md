@@ -54,6 +54,16 @@ go vet ./...
 go build ./...
 ```
 
+Repository transaction integration tests are opt-in because they require a
+MongoDB replica set. Point `MONGO_TEST_URI` at a disposable test replica set;
+the tests create and drop uniquely named databases and fail on connection or
+transaction-topology errors. When the variable is absent, only those external
+MongoDB tests are skipped:
+
+```bash
+MONGO_TEST_URI='mongodb://localhost:27017/?replicaSet=rs0' go test ./internal/repository -run Integration -count=1
+```
+
 MongoDB must run as a replica set because transaction creation atomically inserts the immutable financial record, claims its idempotency key, and adjusts account balances. Startup and `/ready` inspect the Mongo topology and reject a standalone server that cannot execute those transactions. The included Compose file initialises a loopback-only single-node development replica set.
 
 ## Architecture
@@ -92,6 +102,8 @@ All paths are under `/api/v1`. Protected routes require `Authorization: Bearer <
 | GET/POST | `/workspaces/{workspaceID}/vaults` | Visible vaults or create a vault |
 | GET/POST | `/workspaces/{workspaceID}/accounts` | Visible accounts or create one |
 | GET/POST | `/workspaces/{workspaceID}/transactions` | Filtered history or atomic mutation |
+| GET/POST | `/workspaces/{workspaceID}/period-reviews` | Read or capture a reviewed/closed reporting-period snapshot |
+| GET | `/workspaces/{workspaceID}/period-reviews/{reviewID}/changes` | Paginate privacy-filtered post-review transaction revisions |
 | GET | `/workspaces/{workspaceID}/transaction-sequences` | Read expense, income, transfer, and split numbering settings |
 | PATCH | `/workspaces/{workspaceID}/transaction-sequences/{transactionType}` | Configure one transaction sequence safely |
 | GET/POST | `/workspaces/{workspaceID}/transaction-categories` | List or create configurable transaction categories |
@@ -130,7 +142,85 @@ match a safe partial numeric ID. Date-only `to` values are inclusive.
 Category definitions are scoped by workspace and transaction type. Defaults are
 seeded lazily as ordinary editable rows. Transactions retain a category-name
 snapshot, so disabling or replacing a category does not make historical records
-unreadable.
+unreadable. Rename and replacement migrate matching snapshots atomically and
+emit one ordered transaction revision per changed row.
+
+Period reviews are immutable snapshots of workspace-currency transactions for
+an inclusive civil-date range. `member_view` captures the requesting member's
+visible scope; an authorized approver can instead close a non-personal
+workspace's shared-visible scope with `workspace_view`, which is visible to
+other members who can view balances and transactions. Creation requires an
+IANA timezone, retained as evidence and used when displaying audit timestamps;
+transaction occurrence dates remain canonical reporting dates and are never
+shifted across month boundaries.
+
+A later add, edit, delete, privacy-safe split-allocation change, or category
+migration creates an ordered transaction revision. The review response reports
+the cumulative difference from its snapshot, while the changes route returns
+paginated before/after versions subject to the reader's current vault, account,
+and transaction privacy. Split member identifiers and allocations are not
+retained in revision snapshots or returned; the response reports only whether
+an allocation changed.
+Re-review inserts a new checkpoint and cutoff while preserving the earlier
+checkpoint and revision history. Period monetary totals and counts are decimal
+strings in JSON so browser clients do not lose `int64` precision.
+
+Transactions currently have no direct link to the separate expense-claim
+approval workflow. Their approval state is therefore reported honestly as
+`not_applicable`, their immutable revision as `committed`, and a changed shared
+close as `pending_re_review`. This feature does not claim to implement a
+pending transaction approval queue.
+
+### Period review API contract
+
+`POST /workspaces/{workspaceID}/period-reviews` accepts:
+
+```json
+{
+  "from": "2026-07-01",
+  "to": "2026-07-31",
+  "timezone": "Asia/Kolkata",
+  "status": "reviewed",
+  "scope": "member_view"
+}
+```
+
+`from` and `to` are inclusive `YYYY-MM-DD` reporting dates and may span at
+most 366 days. `timezone` must be an IANA name. `scope` defaults to
+`member_view`; `workspace_view` is available only for a non-personal
+workspace, must use `status: "closed"`, and requires
+`approve_expenses` in addition to balance and transaction read permissions.
+A checkpoint is rejected when its captured scope exceeds 10,000 vaults or
+10,000 accounts.
+
+`GET /workspaces/{workspaceID}/period-reviews?from=...&to=...` returns at
+most the latest member checkpoint and the latest readable shared-workspace
+checkpoint. Supplying `scope` selects one. Lookup intentionally does not use
+the browser's current timezone, so travel does not hide an existing checkpoint;
+the original timezone remains response evidence. Earlier checkpoint IDs remain
+immutable and readable through their authorized changes route.
+
+`GET /workspaces/{workspaceID}/period-reviews/{reviewID}/changes` accepts
+`limit` 1–100 (default 30) and `skip` 0–100,000. Results are ordered and
+filtered in MongoDB before pagination. Current asset access controls both the
+period delta and returned before/after sides; a side that is no longer readable
+is returned only as a redaction flag. Snapshot and delta money fields,
+transaction counts, change counts, and transaction `amountMinor` values are
+base-10 JSON strings.
+
+An unchanged retry with the same status, or a `closed` to `reviewed`
+downgrade, returns conflict. A changed period may be reviewed again, and a
+`reviewed` member checkpoint may be closed; both create a new immutable
+generation. Category rename/replacement migrations are atomic and limited to
+5,000 affected transactions per operation.
+
+This is an additive migration: startup creates the period-review and revision
+indexes, but it does not reconstruct transaction revisions that predate this
+release. A first new financial mutation or checkpoint initializes the workspace
+ledger version. For rollback, preserve the new collection, fields, and indexes
+and disable period-review writes/UI; an older API does not emit revision events,
+so create a fresh checkpoint after redeploying this version before relying on a
+period changed during the rollback window.
 
 Notification read mutations are bodyless. Marking one notification returns the
 updated notification object. Marking all returns
