@@ -211,6 +211,33 @@ func newAuditEvent(workspaceID, actorID, action, entityType, entityID string, me
 	}
 }
 
+func (s *FinanceService) advanceLedgerVersion(ctx context.Context, workspaceID string) (int64, error) {
+	var workspace model.Workspace
+	if err := s.store.UpdateOne(ctx, "workspaces", repository.Filter{"_id": workspaceID}, repository.Filter{
+		"$inc": repository.Filter{"ledger_version": int64(1)},
+	}, &workspace); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			// Older focused Store fakes predate workspace ledger state. Keep them
+			// usable without weakening production Mongo, which advertises its
+			// exact server behavior and must never manufacture a version.
+			if _, production := s.store.(interface{ SupportsExactServerAggregation() bool }); !production {
+				return 0, nil
+			}
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	return workspace.LedgerVersion, nil
+}
+
+func transactionRevisionAudit(workspaceID, actorID, action string, transactionID string, before, after *model.TransactionRevisionSnapshot, ledgerVersion int64) *model.AuditEvent {
+	event := newAuditEvent(workspaceID, actorID, action, "transaction", transactionID, nil)
+	event.LedgerVersion = ledgerVersion
+	event.Before = before
+	event.After = after
+	return event
+}
+
 func (s *FinanceService) insertWithAudit(
 	ctx context.Context,
 	collection string,

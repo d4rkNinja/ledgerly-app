@@ -24,6 +24,7 @@ var workspaceOwnedCollections = []string{
 	"invitations",
 	"workspace_join_requests",
 	"notifications",
+	"period_reviews",
 	"audit_events",
 	"idempotency",
 	"workspaces",
@@ -114,42 +115,8 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, workspaceID, act
 		return err
 	}
 
-	var sourceAccount model.Account
-	if err := s.store.FindOne(ctx, "accounts", repository.Filter{
-		"_id": transaction.AccountID, "workspace_id": workspaceID,
-	}, &sourceAccount); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return ErrConflict
-		}
-		return err
-	}
-	if sourceAccount.Currency != transaction.Currency {
-		return ErrConflict
-	}
-	var destinationAccount model.Account
-	if transaction.Type == "transfer" {
-		if transaction.DestinationAccountID == "" || transaction.DestinationAccountID == transaction.AccountID {
-			return ErrConflict
-		}
-		if err := s.store.FindOne(ctx, "accounts", repository.Filter{
-			"_id": transaction.DestinationAccountID, "workspace_id": workspaceID,
-		}, &destinationAccount); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				return ErrConflict
-			}
-			return err
-		}
-		if destinationAccount.Currency != transaction.Currency {
-			return ErrConflict
-		}
-	}
-
-	sourceDelta, err := deletionSourceDelta(transaction)
-	if err != nil {
-		return err
-	}
 	now := time.Now().UTC()
-	_, err = s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
+	_, err := s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
 		var current model.Transaction
 		if err := s.store.FindOne(transactionCtx, "transactions", repository.Filter{
 			"_id": transaction.ID, "workspace_id": workspaceID,
@@ -160,38 +127,12 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, workspaceID, act
 			return nil, err
 		}
 
-		if err := s.reverseBalance(
-			transactionCtx, "accounts", sourceAccount.ID, workspaceID, sourceAccount.Currency,
-			sourceDelta, now,
-		); err != nil {
+		sourceAccount, destinationAccount, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, current)
+		if err != nil {
 			return nil, err
 		}
-		if transaction.Type == "transfer" {
-			if err := s.reverseBalance(
-				transactionCtx, "accounts", destinationAccount.ID, workspaceID, destinationAccount.Currency,
-				-transaction.AmountMinor, now,
-			); err != nil {
-				return nil, err
-			}
-		}
-
-		sourceVaultID := sourceAccount.VaultID
-		if sourceVaultID == "" {
-			sourceVaultID = transaction.VaultID
-		}
-		if err := s.reverseBalance(
-			transactionCtx, "vaults", sourceVaultID, workspaceID, transaction.Currency,
-			sourceDelta, now,
-		); err != nil {
+		if err := s.applyTransactionBalanceChange(transactionCtx, current, sourceAccount, destinationAccount, true, now); err != nil {
 			return nil, err
-		}
-		if transaction.Type == "transfer" && destinationAccount.VaultID != sourceVaultID {
-			if err := s.reverseBalance(
-				transactionCtx, "vaults", destinationAccount.VaultID, workspaceID, transaction.Currency,
-				-transaction.AmountMinor, now,
-			); err != nil {
-				return nil, err
-			}
 		}
 
 		if err := s.store.DeleteOne(transactionCtx, "transactions", repository.Filter{
@@ -202,9 +143,14 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, workspaceID, act
 		if err := s.store.DeleteOne(transactionCtx, "idempotency", repository.Filter{"_id": transaction.ID}); err != nil && !errors.Is(err, repository.ErrNotFound) {
 			return nil, err
 		}
-		if err := s.audit(transactionCtx, workspaceID, actorID, "transaction.deleted", "transaction", transaction.ID, map[string]any{
-			"type": transaction.Type,
-		}); err != nil {
+		ledgerVersion, err := s.advanceLedgerVersion(transactionCtx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.store.Insert(transactionCtx, "audit_events", transactionRevisionAudit(
+			workspaceID, actorID, "transaction.deleted", current.ID,
+			model.NewTransactionRevisionSnapshot(&current), nil, ledgerVersion,
+		)); err != nil {
 			return nil, err
 		}
 		return nil, nil

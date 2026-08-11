@@ -28,6 +28,7 @@ const (
 	goalActionsCollection           = "goal_action_idempotency"
 	expenseClaimsCollection         = "expense_claims"
 	notificationsCollection         = "notifications"
+	periodReviewsCollection         = "period_reviews"
 	auditEventsCollection           = "audit_events"
 	contactsCollection              = "contacts"
 	savedTransactionNamesCollection = "saved_transaction_names"
@@ -222,10 +223,19 @@ func mongoIndexSpecifications() []collectionIndexes {
 			},
 		},
 		{
+			collection: periodReviewsCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "scope", Value: 1}, {Key: "scope_actor_id", Value: 1}, {Key: "from", Value: 1}, {Key: "to", Value: 1}, {Key: "timezone", Value: 1}}, Options: options.Index().SetUnique(true).SetName("member_period_review_unique")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "scope_actor_id", Value: 1}, {Key: "from", Value: 1}, {Key: "to", Value: 1}, {Key: "timezone", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("member_period_review_lookup")},
+			},
+		},
+		{
 			collection: auditEventsCollection,
 			models: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_audit")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}, Options: options.Index().SetName("workspace_audit_history")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("workspace_transaction_revision_ledger")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "entity_id", Value: 1}, {Key: "ledger_version", Value: 1}}, Options: options.Index().SetName("transaction_revision_history")},
 			},
 		},
 	}

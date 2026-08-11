@@ -244,11 +244,7 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 		return nil, err
 	}
 	input = preserveOmittedTransactionFields(input, *transaction)
-	next, sourceAccount, destinationAccount, err := s.transactionFromInput(ctx, workspaceID, actorID, input, transaction)
-	if err != nil {
-		return nil, err
-	}
-	oldSource, oldDestination, err := s.transactionAccountsForBalance(ctx, workspaceID, *transaction)
+	next, _, _, err := s.transactionFromInput(ctx, workspaceID, actorID, input, transaction)
 	if err != nil {
 		return nil, err
 	}
@@ -282,10 +278,18 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 				}
 			}
 		}
+		oldSource, oldDestination, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, current)
+		if err != nil {
+			return nil, err
+		}
+		currentNextSource, currentNextDestination, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, next)
+		if err != nil {
+			return nil, err
+		}
 		if err := s.applyTransactionBalanceChange(transactionCtx, current, oldSource, oldDestination, true, now); err != nil {
 			return nil, err
 		}
-		if err := s.applyTransactionBalanceChange(transactionCtx, next, sourceAccount, destinationAccount, false, now); err != nil {
+		if err := s.applyTransactionBalanceChange(transactionCtx, next, currentNextSource, currentNextDestination, false, now); err != nil {
 			return nil, err
 		}
 		var updated model.Transaction
@@ -297,7 +301,14 @@ func (s *FinanceService) UpdateTransaction(ctx context.Context, workspaceID, act
 			}
 			return nil, err
 		}
-		if err := s.audit(transactionCtx, workspaceID, actorID, "transaction.updated", "transaction", transaction.ID, map[string]any{"type": next.Type}); err != nil {
+		ledgerVersion, err := s.advanceLedgerVersion(transactionCtx, workspaceID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.store.Insert(transactionCtx, "audit_events", transactionRevisionAudit(
+			workspaceID, actorID, "transaction.updated", transaction.ID,
+			model.NewTransactionRevisionSnapshot(&current), model.NewTransactionRevisionSnapshot(&updated), ledgerVersion,
+		)); err != nil {
 			return nil, err
 		}
 		return &updated, nil

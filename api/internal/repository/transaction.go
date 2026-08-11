@@ -21,6 +21,7 @@ const (
 	idempotencyCollection     = "idempotency"
 	transactionsCollection    = "transactions"
 	vaultsCollection          = "vaults"
+	workspacesCollection      = "workspaces"
 	idempotencyRecordLifetime = 24 * time.Hour
 )
 
@@ -145,6 +146,13 @@ func (s *MongoStore) CreateFinancialTransaction(
 			}
 		}
 		if audit != nil {
+			ledgerVersion, err := s.nextWorkspaceLedgerVersion(transactionCtx, tx.WorkspaceID)
+			if err != nil {
+				return nil, fmt.Errorf("advance workspace ledger: %w", err)
+			}
+			audit.LedgerVersion = ledgerVersion
+			audit.Before = nil
+			audit.After = model.NewTransactionRevisionSnapshot(tx)
 			if _, err := s.database.Collection(auditEventsCollection).InsertOne(transactionCtx, audit); err != nil {
 				return nil, fmt.Errorf("insert transaction audit: %w", err)
 			}
@@ -166,6 +174,20 @@ func (s *MongoStore) CreateFinancialTransaction(
 		return nil, errors.New("unexpected transaction result")
 	}
 	return created, nil
+}
+
+func (s *MongoStore) nextWorkspaceLedgerVersion(ctx context.Context, workspaceID string) (int64, error) {
+	var workspace model.Workspace
+	err := s.database.Collection(workspacesCollection).FindOneAndUpdate(
+		ctx,
+		bson.M{"_id": workspaceID},
+		bson.M{"$inc": bson.M{"ledger_version": int64(1)}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&workspace)
+	if err != nil {
+		return 0, normalize(err)
+	}
+	return workspace.LedgerVersion, nil
 }
 
 func transactionSourceDelta(tx *model.Transaction) (int64, error) {

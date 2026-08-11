@@ -32,7 +32,7 @@ func TestMongoIndexSpecificationsAreDeterministicAndUnique(t *testing.T) {
 	required := []string{
 		"users", "workspaces", "sessions", "memberships", "invitations", "workspace_join_requests", "idempotency",
 		"transactions", "vaults", "accounts", "budgets", "goals", "goal_action_idempotency",
-		"recurring_transactions", "expense_claims", "notifications", "transaction_categories", "transaction_sequences", "audit_events",
+		"recurring_transactions", "expense_claims", "notifications", "transaction_categories", "transaction_sequences", "period_reviews", "audit_events",
 	}
 	for _, collection := range required {
 		if !seenCollections[collection] {
