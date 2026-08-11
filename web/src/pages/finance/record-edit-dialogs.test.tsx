@@ -78,19 +78,22 @@ function renderDialog() {
     },
   })
 
-  return render(
-    <MotionConfig reducedMotion="always">
-      <QueryClientProvider client={client}>
-        <AppContext.Provider value={appValue()}>
-          <TransactionEditDialog
-            transaction={transaction}
-            open
-            onClose={vi.fn()}
-          />
-        </AppContext.Provider>
-      </QueryClientProvider>
-    </MotionConfig>,
-  )
+  return {
+    client,
+    ...render(
+      <MotionConfig reducedMotion="always">
+        <QueryClientProvider client={client}>
+          <AppContext.Provider value={appValue()}>
+            <TransactionEditDialog
+              transaction={transaction}
+              open
+              onClose={vi.fn()}
+            />
+          </AppContext.Provider>
+        </QueryClientProvider>
+      </MotionConfig>,
+    ),
+  }
 }
 
 function renderBudgetDialog() {
@@ -150,7 +153,8 @@ describe('TransactionEditDialog date selection', () => {
 
   it('serializes a selected transaction date at UTC midnight without a timezone shift', async () => {
     const user = userEvent.setup()
-    renderDialog()
+    const { client } = renderDialog()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
 
     const date = screen.getByRole('button', { name: /^transaction date/i })
     expect(date).toHaveTextContent('Aug 4, 2026')
@@ -169,6 +173,11 @@ describe('TransactionEditDialog date selection', () => {
           occurredAt: '2026-08-17T00:00:00.000Z',
         }),
       )
+    })
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ['period-reviews', 'workspace-a'],
+      })
     })
   })
 

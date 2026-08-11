@@ -74,6 +74,11 @@ and known boundaries directly.
 - Monthly dashboards, daily cash-flow detail, category summaries, report
   summaries, combined transaction filters, exact/partial transaction-ID
   search, and filter-aware workspace CSV export.
+- Explicit member or shared-workspace reporting-period checkpoints with
+  immutable civil dates, scope, currency, and IANA-timezone evidence. Later
+  transaction changes stay visible through cumulative deltas and a
+  privacy-aware before/after revision drill-down; re-review creates a new
+  checkpoint without rewriting earlier history.
 - Budgets with periods, categories, rollover settings, progress, record
   actions, and workspace sharing.
 - Financial goals with progress, linked transactions, completion, cancellation,

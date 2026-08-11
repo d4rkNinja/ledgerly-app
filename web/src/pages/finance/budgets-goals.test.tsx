@@ -110,18 +110,21 @@ function renderGoals(initialEntry = '/app/goals?goal=goal-a') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <AppContext.Provider value={appValue()}>
-          <MotionConfig reducedMotion="always">
-            <GoalsPage />
-            <LocationProbe />
-          </MotionConfig>
-        </AppContext.Provider>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <AppContext.Provider value={appValue()}>
+            <MotionConfig reducedMotion="always">
+              <GoalsPage />
+              <LocationProbe />
+            </MotionConfig>
+          </AppContext.Provider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    ),
+  }
 }
 
 describe('goal details and actions', () => {
@@ -223,7 +226,8 @@ describe('goal details and actions', () => {
       if (path.endsWith('/goals')) return Promise.resolve([goalPayload({ direction: 'receive' })])
       return Promise.resolve([])
     })
-    renderGoals('/app/goals?goal=goal-a')
+    const { client } = renderGoals('/app/goals?goal=goal-a')
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
     await user.click(await screen.findByRole('button', { name: 'Record transaction' }))
     await user.type(screen.getByLabelText('Goal action amount'), '25')
     await user.click(screen.getByRole('button', { name: 'Goal transaction account' }))
@@ -236,6 +240,11 @@ describe('goal details and actions', () => {
       expect.objectContaining({ amountMinor: 2500, occurredAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/) }),
       { 'Idempotency-Key': expect.any(String) },
     ))
+    await waitFor(() => {
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ['period-reviews', 'workspace-goals'],
+      })
+    })
   })
 
   it('reuses the same idempotency key when retrying an unchanged progress request', async () => {

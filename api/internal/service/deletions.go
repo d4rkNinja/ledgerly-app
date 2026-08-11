@@ -102,45 +102,29 @@ func deleteAllMatching(ctx context.Context, store repository.Store, collection s
 // DeleteTransaction removes one transaction and reverses the balance changes
 // that were applied when it was created. The operation is atomic on MongoDB.
 func (s *FinanceService) DeleteTransaction(ctx context.Context, workspaceID, actorID, transactionID string) error {
-	var transaction model.Transaction
-	if err := s.store.FindOne(ctx, "transactions", repository.Filter{
-		"_id": transactionID, "workspace_id": workspaceID,
-	}, &transaction); err != nil {
-		if errors.Is(err, repository.ErrNotFound) {
-			return ErrNotFound
-		}
-		return err
-	}
-	if err := s.requireTransactionDeletePermission(ctx, workspaceID, actorID, transaction); err != nil {
-		return err
-	}
-
-	now := time.Now().UTC()
 	_, err := s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
-		var current model.Transaction
-		if err := s.store.FindOne(transactionCtx, "transactions", repository.Filter{
-			"_id": transaction.ID, "workspace_id": workspaceID,
-		}, &current); err != nil {
-			if errors.Is(err, repository.ErrNotFound) {
-				return nil, ErrNotFound
-			}
-			return nil, err
-		}
-
-		sourceAccount, destinationAccount, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, current)
+		current, err := s.getTransactionForMutation(transactionCtx, workspaceID, actorID, transactionID)
 		if err != nil {
 			return nil, err
 		}
-		if err := s.applyTransactionBalanceChange(transactionCtx, current, sourceAccount, destinationAccount, true, now); err != nil {
+		if err := s.requireTransactionDeletePermission(transactionCtx, workspaceID, actorID, *current); err != nil {
+			return nil, err
+		}
+		now := time.Now().UTC()
+		sourceAccount, destinationAccount, err := s.transactionAccountsForBalance(transactionCtx, workspaceID, *current)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.applyTransactionBalanceChange(transactionCtx, *current, sourceAccount, destinationAccount, true, now); err != nil {
 			return nil, err
 		}
 
 		if err := s.store.DeleteOne(transactionCtx, "transactions", repository.Filter{
-			"_id": transaction.ID, "workspace_id": workspaceID,
+			"_id": current.ID, "workspace_id": workspaceID,
 		}); err != nil {
 			return nil, err
 		}
-		if err := s.store.DeleteOne(transactionCtx, "idempotency", repository.Filter{"_id": transaction.ID}); err != nil && !errors.Is(err, repository.ErrNotFound) {
+		if err := s.store.DeleteOne(transactionCtx, "idempotency", repository.Filter{"_id": current.ID}); err != nil && !errors.Is(err, repository.ErrNotFound) {
 			return nil, err
 		}
 		ledgerVersion, err := s.advanceLedgerVersion(transactionCtx, workspaceID)
@@ -149,7 +133,7 @@ func (s *FinanceService) DeleteTransaction(ctx context.Context, workspaceID, act
 		}
 		if err := s.store.Insert(transactionCtx, "audit_events", transactionRevisionAudit(
 			workspaceID, actorID, "transaction.deleted", current.ID,
-			model.NewTransactionRevisionSnapshot(&current), nil, ledgerVersion,
+			model.NewTransactionRevisionSnapshot(current), nil, ledgerVersion,
 		)); err != nil {
 			return nil, err
 		}

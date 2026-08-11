@@ -20,6 +20,7 @@ func (a *API) CreatePeriodReview(w http.ResponseWriter, r *http.Request) {
 func (a *API) PeriodReviews(w http.ResponseWriter, r *http.Request) {
 	input := service.PeriodReviewInput{
 		From: r.URL.Query().Get("from"), To: r.URL.Query().Get("to"), Timezone: r.URL.Query().Get("timezone"),
+		Scope: r.URL.Query().Get("scope"),
 	}
 	items, err := a.finance.ListPeriodReviews(r.Context(), workspaceID(r), currentUser(r).ID, input)
 	a.writeItems(w, items, err)

@@ -407,6 +407,7 @@ export function TransactionEditDialog({
     onClose,
     request: (body) => api.patch(`/workspaces/${workspace.id}/transactions/${transaction?.id ?? ''}`, body),
     invalidate: ['transactions', 'accounts', 'vaults', 'budgets', 'dashboard', 'insights'],
+    invalidatePeriodReviews: true,
     successMessage: 'Transaction updated.',
     onServerFields: (fields) => setErrors({ ...fields, amount: fields.amountMinor ?? fields.amount, note: fields.notes ?? fields.note }),
   })

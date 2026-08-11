@@ -212,15 +212,22 @@ func newAuditEvent(workspaceID, actorID, action, entityType, entityID string, me
 }
 
 func (s *FinanceService) advanceLedgerVersion(ctx context.Context, workspaceID string) (int64, error) {
+	return s.advanceLedgerVersionBy(ctx, workspaceID, 1)
+}
+
+func (s *FinanceService) advanceLedgerVersionBy(ctx context.Context, workspaceID string, increment int64) (int64, error) {
+	if increment <= 0 {
+		return 0, nil
+	}
 	var workspace model.Workspace
 	if err := s.store.UpdateOne(ctx, "workspaces", repository.Filter{"_id": workspaceID}, repository.Filter{
-		"$inc": repository.Filter{"ledger_version": int64(1)},
+		"$inc": repository.Filter{"ledger_version": increment},
 	}, &workspace); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			// Older focused Store fakes predate workspace ledger state. Keep them
 			// usable without weakening production Mongo, which advertises its
 			// exact server behavior and must never manufacture a version.
-			if _, production := s.store.(interface{ SupportsExactServerAggregation() bool }); !production {
+			if capability, production := s.store.(interface{ SupportsExactServerAggregation() bool }); !production || !capability.SupportsExactServerAggregation() {
 				return 0, nil
 			}
 			return 0, ErrNotFound
@@ -241,7 +248,61 @@ func transactionRevisionAudit(workspaceID, actorID, action string, transactionID
 	event.LedgerVersion = ledgerVersion
 	event.Before = before
 	event.After = after
+	event.ChangedFields = changedRevisionFields(before, after)
 	return event
+}
+
+func changedRevisionFields(before, after *model.TransactionRevisionSnapshot) []string {
+	if before == nil || after == nil {
+		return nil
+	}
+	fields := make([]string, 0, 15)
+	if before.TransactionID != after.TransactionID {
+		fields = append(fields, "transactionId")
+	}
+	if before.AccountID != after.AccountID {
+		fields = append(fields, "accountId")
+	}
+	if before.DestinationAccountID != after.DestinationAccountID {
+		fields = append(fields, "destinationAccountId")
+	}
+	if before.Type != after.Type {
+		fields = append(fields, "type")
+	}
+	if before.AmountMinor != after.AmountMinor {
+		fields = append(fields, "amountMinor")
+	}
+	if before.Currency != after.Currency {
+		fields = append(fields, "currency")
+	}
+	if before.Category != after.Category {
+		fields = append(fields, "category")
+	}
+	if before.Merchant != after.Merchant {
+		fields = append(fields, "merchant")
+	}
+	if before.Description != after.Description {
+		fields = append(fields, "description")
+	}
+	if before.Notes != after.Notes {
+		fields = append(fields, "notes")
+	}
+	if before.ContactID != after.ContactID {
+		fields = append(fields, "contactId")
+	}
+	if before.GoalID != after.GoalID {
+		fields = append(fields, "goalId")
+	}
+	if before.Privacy != after.Privacy {
+		fields = append(fields, "privacy")
+	}
+	if !before.OccurredAt.Equal(after.OccurredAt) {
+		fields = append(fields, "occurredAt")
+	}
+	if before.HasSplits != after.HasSplits {
+		fields = append(fields, "hasSplits")
+	}
+	return fields
 }
 
 func (s *FinanceService) insertWithAudit(

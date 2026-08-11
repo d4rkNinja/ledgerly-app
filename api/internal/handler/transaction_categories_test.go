@@ -25,9 +25,15 @@ func TestTransactionCategoryConflictResponsesAreActionable(t *testing.T) {
 		},
 		{
 			name:        "used category",
-			err:         &service.TransactionCategoryInUseError{Name: "Food", UsageCount: 3},
+			err:         &service.TransactionCategoryInUseError{Name: "Food", UsageCount: 3, UsageCountExact: true},
 			wantCode:    "category_in_use",
 			wantMessage: "used by 3 transactions",
+		},
+		{
+			name:        "used category hidden count",
+			err:         &service.TransactionCategoryInUseError{Name: "Food", UsageCount: 1},
+			wantCode:    "category_in_use",
+			wantMessage: "is in use",
 		},
 	}
 	for _, test := range tests {

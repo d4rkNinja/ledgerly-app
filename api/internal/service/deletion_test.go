@@ -12,16 +12,17 @@ import (
 )
 
 type deletionStore struct {
-	workspace        model.Workspace
-	memberships      map[string]model.Membership
-	transactions     map[string]model.Transaction
-	accounts         map[string]model.Account
-	vaults           map[string]model.Vault
-	workspaceRecords map[string]int
-	audits           []model.AuditEvent
-	deleted          []string
-	updated          []string
-	txRuns           int
+	workspace         model.Workspace
+	memberships       map[string]model.Membership
+	transactions      map[string]model.Transaction
+	accounts          map[string]model.Account
+	vaults            map[string]model.Vault
+	workspaceRecords  map[string]int
+	audits            []model.AuditEvent
+	deleted           []string
+	updated           []string
+	txRuns            int
+	beforeTransaction func()
 }
 
 func (s *deletionStore) Insert(_ context.Context, collection string, document any) error {
@@ -51,7 +52,7 @@ func (s *deletionStore) FindOne(_ context.Context, collection string, filter rep
 		}
 	case "transactions":
 		transaction, ok := s.transactions[filter["_id"].(string)]
-		if ok && transaction.WorkspaceID == filter["workspace_id"] {
+		if ok && matchesTransaction(transaction, filter) {
 			*destination.(*model.Transaction) = transaction
 			return nil
 		}
@@ -71,7 +72,7 @@ func (s *deletionStore) FindOne(_ context.Context, collection string, filter rep
 	return repository.ErrNotFound
 }
 
-func (s *deletionStore) FindMany(_ context.Context, collection string, _ repository.Filter, destination any, _, _ int64, _ repository.Sort) error {
+func (s *deletionStore) FindMany(_ context.Context, collection string, filter repository.Filter, destination any, _, _ int64, _ repository.Sort) error {
 	switch collection {
 	case "memberships":
 		out := destination.(*[]model.Membership)
@@ -81,7 +82,23 @@ func (s *deletionStore) FindMany(_ context.Context, collection string, _ reposit
 	case "transactions":
 		out := destination.(*[]model.Transaction)
 		for _, transaction := range s.transactions {
-			*out = append(*out, transaction)
+			if matchesTransaction(transaction, filter) {
+				*out = append(*out, transaction)
+			}
+		}
+	case "vaults":
+		out := destination.(*[]model.Vault)
+		for _, vault := range s.vaults {
+			if matchesVault(vault, filter) {
+				*out = append(*out, vault)
+			}
+		}
+	case "accounts":
+		out := destination.(*[]model.Account)
+		for _, account := range s.accounts {
+			if matchesAccount(account, filter) {
+				*out = append(*out, account)
+			}
 		}
 	}
 	return nil
@@ -170,6 +187,10 @@ func (s *deletionStore) Count(context.Context, string, repository.Filter) (int64
 
 func (s *deletionStore) WithTransaction(ctx context.Context, fn repository.TransactionFunc) (any, error) {
 	s.txRuns++
+	if s.beforeTransaction != nil {
+		s.beforeTransaction()
+		s.beforeTransaction = nil
+	}
 	return fn(ctx)
 }
 
@@ -282,6 +303,37 @@ func TestDeleteTransactionDoesNotAllowMemberToDeleteAnotherUsersEntry(t *testing
 	}
 	if len(store.audits) != 0 || len(store.deleted) != 0 {
 		t.Fatalf("denied deletion mutated store: audits=%#v deleted=%#v", store.audits, store.deleted)
+	}
+}
+
+func TestDeleteTransactionReauthorizesInsideTransaction(t *testing.T) {
+	store := newDeletionStore()
+	store.memberships["member-a"] = model.Membership{WorkspaceID: "workspace-a", UserID: "member-a", Role: "member"}
+	store.accounts["account-a"] = model.Account{ID: "account-a", WorkspaceID: "workspace-a", VaultID: "vault-a", Currency: "INR", Privacy: "workspace", BalanceMinor: 875}
+	store.vaults["vault-a"] = model.Vault{ID: "vault-a", WorkspaceID: "workspace-a", Currency: "INR", Privacy: "workspace", BalanceMinor: 875}
+	store.transactions["transaction-a"] = model.Transaction{
+		ID: "transaction-a", WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "account-a",
+		CreatedBy: "member-a", Type: "expense", AmountMinor: 125, Currency: "INR", Privacy: "workspace",
+	}
+	store.beforeTransaction = func() {
+		membership := store.memberships["member-a"]
+		membership.Role = "viewer"
+		store.memberships["member-a"] = membership
+	}
+
+	finance := NewFinanceService(store, NewAccessService(store))
+	err := finance.DeleteTransaction(context.Background(), "workspace-a", "member-a", "transaction-a")
+	if !errors.Is(err, ErrForbidden) {
+		t.Fatalf("DeleteTransaction error = %v, want forbidden", err)
+	}
+	if _, exists := store.transactions["transaction-a"]; !exists {
+		t.Fatal("transaction was deleted after permission revocation")
+	}
+	if store.accounts["account-a"].BalanceMinor != 875 || store.vaults["vault-a"].BalanceMinor != 875 {
+		t.Fatal("balances changed after permission revocation")
+	}
+	if len(store.audits) != 0 {
+		t.Fatalf("audits after denied delete = %#v", store.audits)
 	}
 }
 

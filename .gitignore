@@ -44,6 +44,7 @@ applications/android/gradle/wrapper/gradle-*-all.zip
 
 # Local QA evidence and runtime data
 .qa/
+.tmp-go-cache*/
 artifacts/
 
 # IDE and OS metadata

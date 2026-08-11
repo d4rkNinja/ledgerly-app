@@ -173,6 +173,16 @@ func TestOperationalIndexesMatchServiceFilters(t *testing.T) {
 			name:       "workspace_type_category_order",
 			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "transaction_type", Value: 1}, {Key: "sort_order", Value: 1}, {Key: "name", Value: 1}, {Key: "_id", Value: 1}},
 		},
+		{
+			collection: "audit_events",
+			name:       "period_revision_before_summary",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "before.currency", Value: 1}, {Key: "before.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}},
+		},
+		{
+			collection: "audit_events",
+			name:       "period_revision_after_summary",
+			keys:       bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "after.currency", Value: 1}, {Key: "after.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}},
+		},
 	}
 
 	transactionID := findIndex(t, "transactions", "workspace_sequence_transaction_id_unique")
@@ -216,6 +226,53 @@ func TestOperationalIndexesMatchServiceFilters(t *testing.T) {
 	categoryUnique := findIndex(t, "transaction_categories", "workspace_type_category_name_unique")
 	if categoryUnique.Options.Unique == nil || !*categoryUnique.Options.Unique {
 		t.Fatal("transaction category normalized-name index must be unique")
+	}
+
+	for _, name := range []string{"period_review_generation_history", "period_review_period_history"} {
+		index := findIndex(t, "period_reviews", name)
+		if index.Options.Unique != nil && *index.Options.Unique {
+			t.Fatalf("period review index %q must allow immutable re-review generations", name)
+		}
+	}
+}
+
+func TestPeriodReviewIndexesUseCivilIdentityAndDeterministicGenerationOrder(t *testing.T) {
+	generation, ok := findIndexKeys("period_reviews", "period_review_generation_history")
+	if !ok {
+		t.Fatal("period review generation index keys are not bson.D")
+	}
+	wantGeneration := bson.D{
+		{Key: "workspace_id", Value: 1},
+		{Key: "scope", Value: 1},
+		{Key: "scope_actor_id", Value: 1},
+		{Key: "from", Value: 1},
+		{Key: "to", Value: 1},
+		{Key: "cutoff_ledger_version", Value: -1},
+		{Key: "_id", Value: -1},
+	}
+	if !reflect.DeepEqual(generation, wantGeneration) {
+		t.Fatalf("period review generation keys = %#v, want %#v", generation, wantGeneration)
+	}
+
+	period, ok := findIndexKeys("period_reviews", "period_review_period_history")
+	if !ok {
+		t.Fatal("period review period index keys are not bson.D")
+	}
+	wantPeriod := bson.D{
+		{Key: "workspace_id", Value: 1},
+		{Key: "from", Value: 1},
+		{Key: "to", Value: 1},
+		{Key: "cutoff_ledger_version", Value: -1},
+		{Key: "_id", Value: -1},
+	}
+	if !reflect.DeepEqual(period, wantPeriod) {
+		t.Fatalf("period review period keys = %#v, want %#v", period, wantPeriod)
+	}
+
+	for _, key := range append(append(bson.D(nil), generation...), period...) {
+		if key.Key == "timezone" || key.Key == "created_at" {
+			t.Fatalf("period review ordering must use civil identity and immutable cutoff, found %q", key.Key)
+		}
 	}
 }
 

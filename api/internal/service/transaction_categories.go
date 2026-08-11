@@ -16,6 +16,7 @@ import (
 const (
 	transactionCategoriesCollection = "transaction_categories"
 	transactionCategorySeeds        = "transaction_category_seed_state"
+	transactionCategoryMigrationMax = 5_000 // Keep migrations inside one bounded Mongo transaction.
 )
 
 type TransactionCategoryCreateInput struct {
@@ -52,8 +53,9 @@ func (e *TransactionCategoryDuplicateError) Error() string {
 func (e *TransactionCategoryDuplicateError) Unwrap() error { return ErrConflict }
 
 type TransactionCategoryInUseError struct {
-	Name       string
-	UsageCount int64
+	Name            string
+	UsageCount      int64
+	UsageCountExact bool
 }
 
 func (e *TransactionCategoryInUseError) Error() string {
@@ -195,10 +197,18 @@ func (s *FinanceService) ListTransactionCategories(ctx context.Context, workspac
 		return nil, err
 	}
 	sortTransactionCategories(categories)
+	visibleBase, empty, err := s.visibleTransactionCategoryBaseFilter(ctx, workspaceID, actorID)
+	if err != nil {
+		return nil, err
+	}
 	for index := range categories {
-		usageCount, err := s.store.Count(ctx, "transactions", transactionCategoryUsageFilter(
+		if empty {
+			categories[index].UsageCount = 0
+			continue
+		}
+		usageCount, err := s.store.Count(ctx, "transactions", mergeTransactionCategoryFilter(visibleBase, transactionCategoryUsageFilter(
 			workspaceID, categories[index].TransactionType, categories[index].Name,
-		))
+		)))
 		if err != nil {
 			return nil, err
 		}
@@ -301,9 +311,6 @@ func (s *FinanceService) transactionCategorySortOrder(ctx context.Context, works
 }
 
 func (s *FinanceService) UpdateTransactionCategory(ctx context.Context, workspaceID, actorID, categoryID string, input TransactionCategoryUpdateInput) (*model.TransactionCategory, error) {
-	if _, err := s.access.Require(ctx, workspaceID, actorID, model.PermEditWorkspace); err != nil {
-		return nil, err
-	}
 	categoryID = strings.TrimSpace(categoryID)
 	name := ""
 	if input.Name != nil {
@@ -334,6 +341,9 @@ func (s *FinanceService) UpdateTransactionCategory(ctx context.Context, workspac
 		}
 	}
 	result, err := s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
+		if _, err := s.access.Require(transactionCtx, workspaceID, actorID, model.PermEditWorkspace); err != nil {
+			return nil, err
+		}
 		var locked model.TransactionCategory
 		if err := s.store.FindOne(transactionCtx, transactionCategoriesCollection, repository.Filter{"_id": categoryID, "workspace_id": workspaceID}, &locked); err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
@@ -360,6 +370,17 @@ func (s *FinanceService) UpdateTransactionCategory(ctx context.Context, workspac
 		if input.IsActive != nil {
 			fields["is_active"] = *input.IsActive
 		}
+		if locked.Name != newName {
+			usageCount, err := s.store.Count(transactionCtx, "transactions", transactionCategoryMigrationFilter(
+				workspaceID, locked.TransactionType, locked.Name, newName,
+			))
+			if err != nil {
+				return nil, err
+			}
+			if usageCount > transactionCategoryMigrationMax {
+				return nil, &FieldError{Field: "name", Message: "cannot migrate more than 5000 transactions in one request"}
+			}
+		}
 		var updated model.TransactionCategory
 		err := s.store.UpdateOne(transactionCtx, transactionCategoriesCollection, repository.Filter{
 			"_id": categoryID, "workspace_id": workspaceID,
@@ -374,11 +395,16 @@ func (s *FinanceService) UpdateTransactionCategory(ctx context.Context, workspac
 		// projected mode. Raw transaction types and every other workspace remain
 		// untouched, while history continues to show a meaningful category label.
 		if locked.Name != newName {
-			if _, err := s.store.UpdateMany(transactionCtx, "transactions", transactionCategoryUsageFilter(
-				workspaceID, locked.TransactionType, locked.Name,
-			), repository.Filter{"$set": repository.Filter{"category": newName}}); err != nil {
+			if _, err := s.migrateTransactionCategorySnapshots(
+				transactionCtx, workspaceID, actorID, locked.TransactionType, locked.Name, newName,
+			); err != nil {
 				return nil, err
 			}
+		}
+		if err := s.audit(transactionCtx, workspaceID, actorID, "transaction_category.updated", "transaction_category", categoryID, map[string]any{
+			"transactionType": locked.TransactionType,
+		}); err != nil {
+			return nil, err
 		}
 		return &updated, nil
 	})
@@ -393,15 +419,15 @@ func (s *FinanceService) UpdateTransactionCategory(ctx context.Context, workspac
 }
 
 func (s *FinanceService) DeleteTransactionCategory(ctx context.Context, workspaceID, actorID, categoryID, replacementCategoryID string) error {
-	if _, err := s.access.Require(ctx, workspaceID, actorID, model.PermEditWorkspace); err != nil {
-		return err
-	}
 	categoryID = strings.TrimSpace(categoryID)
 	replacementCategoryID = strings.TrimSpace(replacementCategoryID)
 	if replacementCategoryID != "" && replacementCategoryID == categoryID {
 		return &FieldError{Field: "replacementCategoryId", Message: "must reference a different category"}
 	}
 	_, err := s.store.WithTransaction(ctx, func(transactionCtx context.Context) (any, error) {
+		if _, err := s.access.Require(transactionCtx, workspaceID, actorID, model.PermEditWorkspace); err != nil {
+			return nil, err
+		}
 		var category model.TransactionCategory
 		if err := s.store.FindOne(transactionCtx, transactionCategoriesCollection, repository.Filter{"_id": categoryID, "workspace_id": workspaceID}, &category); err != nil {
 			if errors.Is(err, repository.ErrNotFound) {
@@ -429,12 +455,23 @@ func (s *FinanceService) DeleteTransactionCategory(ctx context.Context, workspac
 			}
 		}
 		if usageCount > 0 && replacementCategoryID == "" {
-			return nil, &TransactionCategoryInUseError{Name: category.Name, UsageCount: usageCount}
+			visibleCount, countErr := s.visibleTransactionCategoryUsageCount(
+				transactionCtx, workspaceID, actorID, category.TransactionType, category.Name,
+			)
+			if countErr != nil {
+				return nil, countErr
+			}
+			return nil, &TransactionCategoryInUseError{
+				Name: category.Name, UsageCount: visibleCount, UsageCountExact: visibleCount == usageCount,
+			}
 		}
 		if usageCount > 0 {
-			if _, err := s.store.UpdateMany(transactionCtx, "transactions", usageFilter, repository.Filter{
-				"$set": repository.Filter{"category": replacement.Name},
-			}); err != nil {
+			if usageCount > transactionCategoryMigrationMax {
+				return nil, &FieldError{Field: "replacementCategoryId", Message: "cannot migrate more than 5000 transactions in one request"}
+			}
+			if _, err := s.migrateTransactionCategorySnapshots(
+				transactionCtx, workspaceID, actorID, category.TransactionType, category.Name, replacement.Name,
+			); err != nil {
 				return nil, err
 			}
 		}
@@ -444,6 +481,11 @@ func (s *FinanceService) DeleteTransactionCategory(ctx context.Context, workspac
 			if errors.Is(err, repository.ErrNotFound) {
 				return nil, ErrNotFound
 			}
+			return nil, err
+		}
+		if err := s.audit(transactionCtx, workspaceID, actorID, "transaction_category.deleted", "transaction_category", categoryID, map[string]any{
+			"transactionType": category.TransactionType,
+		}); err != nil {
 			return nil, err
 		}
 		return nil, nil
@@ -548,6 +590,95 @@ func transactionCategoryUsageFilter(workspaceID, transactionType, name string) r
 		filter["type"] = repository.Filter{"$in": []string{"expense", "adjustment"}}
 	}
 	return filter
+}
+
+func transactionCategoryMigrationFilter(workspaceID, transactionType, oldName, newName string) repository.Filter {
+	filter := transactionCategoryUsageFilter(workspaceID, transactionType, oldName)
+	category := filter["category"].(repository.Filter)
+	category["$ne"] = newName
+	return filter
+}
+
+func mergeTransactionCategoryFilter(base, category repository.Filter) repository.Filter {
+	merged := make(repository.Filter, len(base)+len(category))
+	for key, value := range base {
+		merged[key] = value
+	}
+	for key, value := range category {
+		merged[key] = value
+	}
+	return merged
+}
+
+func (s *FinanceService) visibleTransactionCategoryBaseFilter(ctx context.Context, workspaceID, actorID string) (repository.Filter, bool, error) {
+	filter, empty, err := s.transactionQuery(ctx, workspaceID, actorID, TransactionFilter{})
+	if errors.Is(err, ErrForbidden) {
+		return nil, true, nil
+	}
+	return filter, empty, err
+}
+
+func (s *FinanceService) visibleTransactionCategoryUsageCount(ctx context.Context, workspaceID, actorID, transactionType, name string) (int64, error) {
+	base, empty, err := s.visibleTransactionCategoryBaseFilter(ctx, workspaceID, actorID)
+	if err != nil || empty {
+		return 0, err
+	}
+	return s.store.Count(ctx, "transactions", mergeTransactionCategoryFilter(
+		base, transactionCategoryUsageFilter(workspaceID, transactionType, name),
+	))
+}
+
+func (s *FinanceService) migrateTransactionCategorySnapshots(
+	ctx context.Context,
+	workspaceID, actorID, transactionType, oldName, newName string,
+) (int64, error) {
+	usageFilter := transactionCategoryMigrationFilter(workspaceID, transactionType, oldName, newName)
+	var affected []model.Transaction
+	if err := s.store.FindMany(ctx, "transactions", usageFilter, &affected, transactionCategoryMigrationMax+1, 0, repository.Sort{"_id": 1}); err != nil {
+		return 0, err
+	}
+	if len(affected) > transactionCategoryMigrationMax {
+		return 0, &FieldError{Field: "category", Message: "cannot migrate more than 5000 transactions in one request"}
+	}
+	if len(affected) == 0 {
+		return 0, nil
+	}
+	sort.Slice(affected, func(left, right int) bool {
+		return affected[left].ID < affected[right].ID
+	})
+	now := time.Now().UTC()
+	updatedCount, err := s.store.UpdateMany(ctx, "transactions", usageFilter, repository.Filter{
+		"$set": repository.Filter{"category": newName, "updated_at": now},
+	})
+	if err != nil {
+		return 0, err
+	}
+	if updatedCount != int64(len(affected)) {
+		return 0, ErrConflict
+	}
+	lastLedgerVersion, err := s.advanceLedgerVersionBy(ctx, workspaceID, int64(len(affected)))
+	if err != nil {
+		return 0, err
+	}
+	firstLedgerVersion := lastLedgerVersion - int64(len(affected)) + 1
+	if lastLedgerVersion == 0 {
+		firstLedgerVersion = 0
+	}
+	for index := range affected {
+		before := affected[index]
+		after := before
+		after.Category = newName
+		after.UpdatedAt = now
+		audit := transactionRevisionAudit(
+			workspaceID, actorID, "transaction.updated", before.ID,
+			model.NewTransactionRevisionSnapshot(&before), model.NewTransactionRevisionSnapshot(&after),
+			firstLedgerVersion+int64(index),
+		)
+		if err := s.store.Insert(ctx, "audit_events", audit); err != nil {
+			return 0, err
+		}
+	}
+	return updatedCount, nil
 }
 
 // validateTransactionCategory keeps unconfigured legacy workspaces permissive,

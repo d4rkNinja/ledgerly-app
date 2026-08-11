@@ -380,15 +380,17 @@ type Notification struct {
 }
 
 type AuditEvent struct {
-	ID            string                       `bson:"_id" json:"id"`
-	WorkspaceID   string                       `bson:"workspace_id" json:"workspaceId"`
-	ActorID       string                       `bson:"actor_id" json:"actorId"`
-	Action        string                       `bson:"action" json:"action"`
-	EntityType    string                       `bson:"entity_type" json:"entityType"`
-	EntityID      string                       `bson:"entity_id" json:"entityId"`
-	Metadata      map[string]any               `bson:"metadata,omitempty" json:"metadata,omitempty"`
-	LedgerVersion int64                        `bson:"ledger_version,omitempty" json:"-"`
-	Before        *TransactionRevisionSnapshot `bson:"before,omitempty" json:"-"`
-	After         *TransactionRevisionSnapshot `bson:"after,omitempty" json:"-"`
-	CreatedAt     time.Time                    `bson:"created_at" json:"createdAt"`
+	ID                     string                       `bson:"_id" json:"id"`
+	WorkspaceID            string                       `bson:"workspace_id" json:"workspaceId"`
+	ActorID                string                       `bson:"actor_id" json:"actorId"`
+	Action                 string                       `bson:"action" json:"action"`
+	EntityType             string                       `bson:"entity_type" json:"entityType"`
+	EntityID               string                       `bson:"entity_id" json:"entityId"`
+	Metadata               map[string]any               `bson:"metadata,omitempty" json:"metadata,omitempty"`
+	LedgerVersion          int64                        `bson:"ledger_version,omitempty" json:"-"`
+	Before                 *TransactionRevisionSnapshot `bson:"before,omitempty" json:"-"`
+	After                  *TransactionRevisionSnapshot `bson:"after,omitempty" json:"-"`
+	ChangedFields          []string                     `bson:"changed_fields,omitempty" json:"-"`
+	SplitAllocationChanged bool                         `bson:"split_allocation_changed,omitempty" json:"-"`
+	CreatedAt              time.Time                    `bson:"created_at" json:"createdAt"`
 }

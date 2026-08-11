@@ -14,6 +14,7 @@ func TestAuditRevisionFieldsAreBSONOnly(t *testing.T) {
 		LedgerVersion: 7,
 		Before:        &TransactionRevisionSnapshot{ID: "transaction-a", Notes: "sensitive before"},
 		After:         &TransactionRevisionSnapshot{ID: "transaction-a", Notes: "sensitive after"},
+		ChangedFields: []string{"notes"}, SplitAllocationChanged: true,
 	}
 	encoded, err := json.Marshal(event)
 	if err != nil {
@@ -23,7 +24,7 @@ func TestAuditRevisionFieldsAreBSONOnly(t *testing.T) {
 	if err := json.Unmarshal(encoded, &public); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"ledgerVersion", "before", "after"} {
+	for _, key := range []string{"ledgerVersion", "before", "after", "changedFields", "splitAllocationChanged"} {
 		if _, exposed := public[key]; exposed {
 			t.Fatalf("generic audit JSON exposed %q: %s", key, encoded)
 		}
@@ -36,7 +37,7 @@ func TestAuditRevisionFieldsAreBSONOnly(t *testing.T) {
 	if err := bson.Unmarshal(stored, &internal); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"ledger_version", "before", "after"} {
+	for _, key := range []string{"ledger_version", "before", "after", "changed_fields", "split_allocation_changed"} {
 		if _, persisted := internal[key]; !persisted {
 			t.Fatalf("BSON omitted %q: %#v", key, internal)
 		}

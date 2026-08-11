@@ -134,11 +134,18 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 		},
 		{
 			collection: "period_reviews",
-			indexes:    []string{"member_period_review_unique", "member_period_review_lookup"},
+			indexes:    []string{"period_review_generation_history", "period_review_period_history"},
 		},
 		{
 			collection: "audit_events",
-			indexes:    []string{"workspace_audit", "workspace_audit_history", "workspace_transaction_revision_ledger", "transaction_revision_history"},
+			indexes: []string{
+				"workspace_audit",
+				"workspace_audit_history",
+				"workspace_transaction_revision_ledger",
+				"period_revision_before_summary",
+				"period_revision_after_summary",
+				"transaction_revision_history",
+			},
 		},
 	}
 

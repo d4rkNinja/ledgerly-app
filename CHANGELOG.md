@@ -8,6 +8,16 @@ release is cut.
 
 ### Added
 
+- Reviewed member-view and closed shared-workspace reporting-period snapshots
+  with explicit scope, currency, civil-date bounds, and IANA-timezone evidence.
+- Persistent dashboard markers, cumulative post-review deltas, and paginated
+  privacy-aware transaction revision drill-downs with occurrence, available
+  creation/edit timestamps, editor attribution, split-change signals, and
+  workflow-state history.
+- Workspace ledger versions and atomic before/after transaction audits for
+  creates, edits, deletes, and category rename/replacement migrations.
+- Immutable re-review cycles that preserve earlier checkpoints while resetting
+  the latest period marker after corrections have been acknowledged.
 - Workspace-scoped numeric transaction IDs with no prefixes and a default
   `0001` format.
 - Independent atomic sequences for expense, income, transfer, and split
@@ -38,6 +48,10 @@ release is cut.
 
 ### Fixed
 
+- Backdated and date-only transactions now remain in the intended civil
+  reporting month across positive and negative UTC offsets and DST changes.
+- Private or no-longer-visible transaction revisions are redacted from period
+  review details, and revision totals retain exact integer precision.
 - Exact transaction-ID workspace search is no longer lost behind a bounded set
   of prefix matches.
 - Date-only transaction and export bounds are parsed consistently, with an

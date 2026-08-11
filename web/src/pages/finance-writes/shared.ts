@@ -13,6 +13,7 @@ import { z } from 'zod'
 import { useApp } from '@/app/app-state'
 import type { Money } from '@/domain/types'
 import { ApiError } from '@/lib/api-client'
+import { invalidatePeriodReviewQueries } from '@/lib/period-review-query'
 import { successHaptic } from '@/platform/haptics'
 
 export type FinanceFeedback = {
@@ -228,6 +229,7 @@ type WriteFlowOptions<TVariables> = {
   onClose: () => void
   request: (variables: TVariables) => Promise<unknown>
   invalidate: string[]
+  invalidatePeriodReviews?: boolean
   successMessage: string
   onServerFields?: (fields: Record<string, string>) => void
 }
@@ -237,6 +239,7 @@ export function useWriteFlow<TVariables>({
   onClose,
   request,
   invalidate,
+  invalidatePeriodReviews = false,
   successMessage,
   onServerFields,
 }: WriteFlowOptions<TVariables>) {
@@ -293,6 +296,9 @@ export function useWriteFlow<TVariables>({
               : [key, workspace.id],
         })
       })
+      if (invalidatePeriodReviews) {
+        void invalidatePeriodReviewQueries(queryClient, workspace.id)
+      }
       finish(successMessage)
     },
     onError: (error) => {

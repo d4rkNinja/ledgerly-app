@@ -48,6 +48,30 @@ func (s *periodReviewStore) FindMany(ctx context.Context, collection string, fil
 	case "audit_events":
 		*destination.(*[]model.AuditEvent) = append([]model.AuditEvent(nil), s.events...)
 		return nil
+	case "transactions":
+		out := destination.(*[]model.Transaction)
+		for _, transaction := range s.financeStore.transactions {
+			if matchesTransaction(transaction, filter) {
+				*out = append(*out, transaction)
+			}
+		}
+		return nil
+	case "vaults":
+		out := destination.(*[]model.Vault)
+		for _, vault := range s.financeStore.vaults {
+			if matchesVault(vault, filter) {
+				*out = append(*out, vault)
+			}
+		}
+		return nil
+	case "accounts":
+		out := destination.(*[]model.Account)
+		for _, account := range s.financeStore.accounts {
+			if matchesAccount(account, filter) {
+				*out = append(*out, account)
+			}
+		}
+		return nil
 	default:
 		return s.financeStore.FindMany(ctx, collection, filter, destination, limit, skip, sort)
 	}
@@ -103,6 +127,40 @@ func TestCreatePeriodReviewProducesReproducibleSnapshotAndRejectsDuplicate(t *te
 	}
 }
 
+func TestCreatePeriodReviewIncludesArchivedSharedAccountTransactions(t *testing.T) {
+	for _, scope := range []string{model.PeriodReviewScopeMemberView, model.PeriodReviewScopeWorkspaceView} {
+		t.Run(scope, func(t *testing.T) {
+			finance, store := periodReviewFinance()
+			store.membership.Permissions = append(store.membership.Permissions, model.PermApproveExpenses)
+			store.accounts = map[string]model.Account{
+				"archived-shared": {
+					ID: "archived-shared", WorkspaceID: "workspace-a", VaultID: "vault-a",
+					OwnerID: "user-b", Currency: "INR", Privacy: "workspace", Archived: true,
+				},
+			}
+			store.transactions = []model.Transaction{{
+				ID: "archived-expense", WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "archived-shared",
+				CreatedBy: "user-b", Type: "expense", AmountMinor: 1250, Currency: "INR", Privacy: "workspace",
+				OccurredAt: mustTime(t, "2026-07-10T00:00:00Z"),
+			}}
+
+			got, err := finance.CreatePeriodReview(context.Background(), "workspace-a", "user-a", PeriodReviewInput{
+				From: "2026-07-01", To: "2026-07-31", Timezone: "UTC", Status: "closed", Scope: scope,
+			})
+			if err != nil {
+				t.Fatalf("CreatePeriodReview() error = %v", err)
+			}
+			want := model.PeriodTotals{SpendingMinor: 1250, NetMinor: -1250, TransactionCount: 1}
+			if got.Snapshot != want {
+				t.Fatalf("snapshot = %#v, want archived shared transaction totals %#v", got.Snapshot, want)
+			}
+			if got.AccountCount != 1 || len(got.AccountIDs) != 1 || got.AccountIDs[0] != "archived-shared" {
+				t.Fatalf("captured accounts = %#v, want archived-shared", got.AccountIDs)
+			}
+		})
+	}
+}
+
 func TestPeriodReviewCalendarBoundsUseLocationAwareCalendarMath(t *testing.T) {
 	tests := []struct {
 		name, from, to, zone, wantFrom, wantTo string
@@ -154,12 +212,13 @@ func TestPeriodReviewTimezoneAcceptsIANADataAndLinks(t *testing.T) {
 
 func TestPeriodRevisionDeltasCoverEditsCreatesDeletesMovesAndZeroNetChanges(t *testing.T) {
 	review := model.PeriodReview{
-		WorkspaceID: "workspace-a", ScopeActorID: "user-a", Currency: "INR",
+		WorkspaceID: "workspace-a", Scope: model.PeriodReviewScopeMemberView, ScopeActorID: "user-a", Currency: "INR",
 		VaultIDs: []string{"vault-a"}, AccountIDs: []string{"account-a"},
+		From: "2026-07-01", To: "2026-07-31",
 		FromUTC: mustTime(t, "2026-07-01T00:00:00Z"), ToUTCExclusive: mustTime(t, "2026-08-01T00:00:00Z"),
 	}
 	snapshot := func(id, kind string, amount int64, occurred string) *model.TransactionRevisionSnapshot {
-		return &model.TransactionRevisionSnapshot{ID: id, VaultID: "vault-a", AccountID: "account-a", CreatedBy: "user-a", Privacy: "private", Currency: "INR", Type: kind, AmountMinor: amount, OccurredAt: mustTime(t, occurred)}
+		return &model.TransactionRevisionSnapshot{ID: id, WorkspaceID: "workspace-a", VaultID: "vault-a", AccountID: "account-a", CreatedBy: "user-a", Privacy: "private", Currency: "INR", Type: kind, AmountMinor: amount, OccurredAt: mustTime(t, occurred)}
 	}
 	tests := []struct {
 		name  string

@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"testing"
@@ -14,8 +16,12 @@ import (
 
 type transactionCategoryStore struct {
 	memberships  map[string]model.Membership
+	workspaces   map[string]model.Workspace
+	vaults       map[string]model.Vault
+	accounts     map[string]model.Account
 	categories   map[string]model.TransactionCategory
 	transactions map[string]model.Transaction
+	audits       []model.AuditEvent
 	seeded       map[string]time.Time
 }
 
@@ -25,6 +31,16 @@ func newTransactionCategoryStore() *transactionCategoryStore {
 			"workspace-a:owner-a":  {ID: "membership-a", WorkspaceID: "workspace-a", UserID: "owner-a", Role: "owner"},
 			"workspace-a:viewer-a": {ID: "membership-viewer", WorkspaceID: "workspace-a", UserID: "viewer-a", Role: "viewer"},
 			"workspace-b:owner-b":  {ID: "membership-b", WorkspaceID: "workspace-b", UserID: "owner-b", Role: "owner"},
+		},
+		workspaces: map[string]model.Workspace{
+			"workspace-a": {ID: "workspace-a"},
+			"workspace-b": {ID: "workspace-b"},
+		},
+		vaults: map[string]model.Vault{
+			"": {ID: "", WorkspaceID: "workspace-a", Privacy: "workspace"},
+		},
+		accounts: map[string]model.Account{
+			"": {ID: "", WorkspaceID: "workspace-a", VaultID: "", Privacy: "workspace"},
 		},
 		categories:   make(map[string]model.TransactionCategory),
 		transactions: make(map[string]model.Transaction),
@@ -55,6 +71,9 @@ func (s *transactionCategoryStore) Insert(_ context.Context, collection string, 
 			return repository.ErrConflict
 		}
 		s.seeded[marker.WorkspaceID] = marker.SeededAt
+		return nil
+	case "audit_events":
+		s.audits = append(s.audits, *document.(*model.AuditEvent))
 		return nil
 	default:
 		return errors.New("unexpected insert collection: " + collection)
@@ -88,20 +107,53 @@ func (s *transactionCategoryStore) FindOne(_ context.Context, collection string,
 			}
 		}
 		return repository.ErrNotFound
+	case "workspaces":
+		workspace, exists := s.workspaces[filter["_id"].(string)]
+		if !exists {
+			return repository.ErrNotFound
+		}
+		*destination.(*model.Workspace) = workspace
+		return nil
 	default:
 		return repository.ErrNotFound
 	}
 }
 
-func (s *transactionCategoryStore) FindMany(_ context.Context, collection string, filter repository.Filter, destination any, _, _ int64, _ repository.Sort) error {
-	if collection != transactionCategoriesCollection {
-		return errors.New("unexpected find-many collection: " + collection)
-	}
-	items := destination.(*[]model.TransactionCategory)
-	for _, category := range s.categories {
-		if transactionCategoryMatches(category, filter) {
-			*items = append(*items, category)
+func (s *transactionCategoryStore) FindMany(_ context.Context, collection string, filter repository.Filter, destination any, limit, _ int64, _ repository.Sort) error {
+	switch collection {
+	case transactionCategoriesCollection:
+		items := destination.(*[]model.TransactionCategory)
+		for _, category := range s.categories {
+			if transactionCategoryMatches(category, filter) {
+				*items = append(*items, category)
+			}
 		}
+	case "transactions":
+		items := destination.(*[]model.Transaction)
+		for _, transaction := range s.transactions {
+			if transactionMatchesCategoryFilter(transaction, filter) {
+				*items = append(*items, transaction)
+				if limit > 0 && int64(len(*items)) >= limit {
+					break
+				}
+			}
+		}
+	case "vaults":
+		items := destination.(*[]model.Vault)
+		for _, vault := range s.vaults {
+			if matchesVault(vault, filter) {
+				*items = append(*items, vault)
+			}
+		}
+	case "accounts":
+		items := destination.(*[]model.Account)
+		for _, account := range s.accounts {
+			if matchesAccount(account, filter) {
+				*items = append(*items, account)
+			}
+		}
+	default:
+		return errors.New("unexpected find-many collection: " + collection)
 	}
 	return nil
 }
@@ -111,6 +163,17 @@ func (s *transactionCategoryStore) Aggregate(context.Context, string, repository
 }
 
 func (s *transactionCategoryStore) UpdateOne(_ context.Context, collection string, filter, update repository.Filter, destination any) error {
+	if collection == "workspaces" {
+		workspace, exists := s.workspaces[filter["_id"].(string)]
+		if !exists {
+			return repository.ErrNotFound
+		}
+		inc, _ := update["$inc"].(repository.Filter)
+		workspace.LedgerVersion += inc["ledger_version"].(int64)
+		s.workspaces[workspace.ID] = workspace
+		*destination.(*model.Workspace) = workspace
+		return nil
+	}
 	if collection != transactionCategoriesCollection {
 		return errors.New("unexpected update-one collection: " + collection)
 	}
@@ -168,10 +231,12 @@ func (s *transactionCategoryStore) UpdateMany(_ context.Context, collection stri
 	}
 	set, _ := update["$set"].(repository.Filter)
 	category, _ := set["category"].(string)
+	updatedAt, _ := set["updated_at"].(time.Time)
 	var count int64
 	for id, transaction := range s.transactions {
 		if transactionMatchesCategoryFilter(transaction, filter) {
 			transaction.Category = category
+			transaction.UpdatedAt = updatedAt
 			s.transactions[id] = transaction
 			count++
 		}
@@ -238,7 +303,28 @@ func transactionCategoryMatches(category model.TransactionCategory, filter repos
 }
 
 func transactionMatchesCategoryFilter(transaction model.Transaction, filter repository.Filter) bool {
+	if clauses, ok := filter["$or"].([]repository.Filter); ok && len(clauses) > 0 {
+		matched := false
+		for _, clause := range clauses {
+			if transactionMatchesCategoryFilter(transaction, clause) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
 	if value, ok := filter["workspace_id"].(string); ok && transaction.WorkspaceID != value {
+		return false
+	}
+	if !matchesIDFilter(transaction.VaultID, filter["vault_id"]) || !matchesIDFilter(transaction.AccountID, filter["account_id"]) {
+		return false
+	}
+	if value, ok := filter["privacy"].(string); ok && transaction.Privacy != value && !(value == "workspace" && transaction.Privacy == "") {
+		return false
+	}
+	if value, ok := filter["created_by"].(string); ok && transaction.CreatedBy != value {
 		return false
 	}
 	if criterion, ok := filter["category"].(repository.Filter); ok {
@@ -248,6 +334,9 @@ func transactionMatchesCategoryFilter(transaction model.Transaction, filter repo
 		}
 		matched, err := regexp.MatchString(pattern, transaction.Category)
 		if err != nil || !matched {
+			return false
+		}
+		if value, ok := criterion["$ne"].(string); ok && transaction.Category == value {
 			return false
 		}
 	}
@@ -441,7 +530,7 @@ func TestTransactionCategoryUsageScopesAllFourTypes(t *testing.T) {
 		}
 		err = service.DeleteTransactionCategory(ctx, "workspace-a", "owner-a", category.ID, "")
 		var inUse *TransactionCategoryInUseError
-		if !errors.As(err, &inUse) || inUse.UsageCount != 1 {
+		if !errors.As(err, &inUse) || inUse.UsageCount != 1 || !inUse.UsageCountExact {
 			t.Errorf("%s delete conflict = %v", test.transactionType, err)
 		}
 	}
@@ -474,6 +563,9 @@ func TestTransactionCategoryReplacementAndRenameAreModeScoped(t *testing.T) {
 	if got := store.transactions["other-workspace"].Category; got != "Groceries" {
 		t.Errorf("other workspace snapshot changed to %q", got)
 	}
+	if store.transactions["expense"].UpdatedAt.IsZero() {
+		t.Fatal("replacement did not update transaction timestamp")
+	}
 
 	store.transactions["refund"] = model.Transaction{ID: "refund", WorkspaceID: "workspace-a", Type: "refund", Category: "Salary"}
 	store.transactions["expense-salary"] = model.Transaction{ID: "expense-salary", WorkspaceID: "workspace-a", Type: "expense", Category: "Salary"}
@@ -486,6 +578,124 @@ func TestTransactionCategoryReplacementAndRenameAreModeScoped(t *testing.T) {
 	}
 	if got := store.transactions["expense-salary"].Category; got != "Salary" {
 		t.Errorf("expense snapshot changed during income rename to %q", got)
+	}
+	transactionAudits := make([]model.AuditEvent, 0, 2)
+	for _, audit := range store.audits {
+		if audit.EntityType == "transaction" {
+			transactionAudits = append(transactionAudits, audit)
+		}
+	}
+	if len(transactionAudits) != 2 {
+		t.Fatalf("transaction migration audits = %#v", transactionAudits)
+	}
+	for index, audit := range transactionAudits {
+		if !reflect.DeepEqual(audit.ChangedFields, []string{"category"}) || audit.Before == nil || audit.After == nil || audit.Before.Category == audit.After.Category {
+			t.Fatalf("migration audit[%d] = %#v", index, audit)
+		}
+		if audit.LedgerVersion != int64(index+1) {
+			t.Fatalf("migration audit[%d] ledger version = %d", index, audit.LedgerVersion)
+		}
+	}
+}
+
+func TestTransactionCategoryUsageDoesNotDisclosePrivateTransactionCount(t *testing.T) {
+	store := newTransactionCategoryStore()
+	service := newTransactionCategoryService(store)
+	ctx := context.Background()
+	all, err := service.ListTransactionCategories(ctx, "workspace-a", "owner-a", "expense")
+	if err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+	general := categoryByName(t, all, "expense", "General")
+	store.vaults["private-vault"] = model.Vault{ID: "private-vault", WorkspaceID: "workspace-a", OwnerID: "member-b", Privacy: "private"}
+	store.accounts["private-account"] = model.Account{ID: "private-account", WorkspaceID: "workspace-a", VaultID: "private-vault", OwnerID: "member-b", Privacy: "private"}
+	store.transactions["visible"] = model.Transaction{ID: "visible", WorkspaceID: "workspace-a", Type: "expense", Category: "General", Privacy: "workspace"}
+	store.transactions["hidden"] = model.Transaction{
+		ID: "hidden", WorkspaceID: "workspace-a", VaultID: "private-vault", AccountID: "private-account",
+		CreatedBy: "member-b", Type: "expense", Category: "General", Privacy: "private",
+	}
+
+	listed, err := service.ListTransactionCategories(ctx, "workspace-a", "owner-a", "expense")
+	if err != nil {
+		t.Fatalf("list categories: %v", err)
+	}
+	if got := categoryByName(t, listed, "expense", "General").UsageCount; got != 1 {
+		t.Fatalf("visible usage count = %d, want 1", got)
+	}
+	err = service.DeleteTransactionCategory(ctx, "workspace-a", "owner-a", general.ID, "")
+	var inUse *TransactionCategoryInUseError
+	if !errors.As(err, &inUse) || inUse.UsageCount != 1 || inUse.UsageCountExact {
+		t.Fatalf("private usage error = %#v / %v", inUse, err)
+	}
+}
+
+func TestTransactionCategoryCaseOnlyRenameSkipsExactNoOpRows(t *testing.T) {
+	store := newTransactionCategoryStore()
+	service := newTransactionCategoryService(store)
+	ctx := context.Background()
+	all, err := service.ListTransactionCategories(ctx, "workspace-a", "owner-a", "expense")
+	if err != nil {
+		t.Fatalf("seed categories: %v", err)
+	}
+	general := categoryByName(t, all, "expense", "General")
+	store.transactions["exact"] = model.Transaction{ID: "exact", WorkspaceID: "workspace-a", Type: "expense", Category: "general", Privacy: "workspace"}
+	store.transactions["changed"] = model.Transaction{ID: "changed", WorkspaceID: "workspace-a", Type: "expense", Category: "GENERAL", Privacy: "workspace"}
+
+	if _, err := service.UpdateTransactionCategory(ctx, "workspace-a", "owner-a", general.ID, TransactionCategoryUpdateInput{Name: categoryStringPointer("general")}); err != nil {
+		t.Fatalf("case-only rename: %v", err)
+	}
+	if !store.transactions["exact"].UpdatedAt.IsZero() {
+		t.Fatal("exact no-op row received an update timestamp")
+	}
+	if store.transactions["changed"].Category != "general" || store.transactions["changed"].UpdatedAt.IsZero() {
+		t.Fatalf("changed row = %#v", store.transactions["changed"])
+	}
+	transactionAudits := 0
+	for _, audit := range store.audits {
+		if audit.EntityType == "transaction" {
+			transactionAudits++
+		}
+	}
+	if transactionAudits != 1 {
+		t.Fatalf("transaction migration audits = %d, want 1", transactionAudits)
+	}
+}
+
+func TestTransactionCategoryMigrationLimit(t *testing.T) {
+	tests := []struct {
+		name      string
+		count     int
+		wantError bool
+	}{
+		{name: "at limit", count: transactionCategoryMigrationMax},
+		{name: "over limit", count: transactionCategoryMigrationMax + 1, wantError: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := newTransactionCategoryStore()
+			service := newTransactionCategoryService(store)
+			for index := 0; index < test.count; index++ {
+				id := fmt.Sprintf("transaction-%05d", index)
+				store.transactions[id] = model.Transaction{ID: id, WorkspaceID: "workspace-a", Type: "expense", Category: "General", Privacy: "workspace"}
+			}
+			updated, err := service.migrateTransactionCategorySnapshots(context.Background(), "workspace-a", "owner-a", "expense", "General", "Everyday")
+			if test.wantError {
+				var fieldErr *FieldError
+				if !errors.As(err, &fieldErr) {
+					t.Fatalf("migration error = %v, want FieldError", err)
+				}
+				if updated != 0 || len(store.audits) != 0 || store.workspaces["workspace-a"].LedgerVersion != 0 {
+					t.Fatalf("overflow mutated state: updated=%d audits=%d ledger=%d", updated, len(store.audits), store.workspaces["workspace-a"].LedgerVersion)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("migration at limit: %v", err)
+			}
+			if updated != int64(test.count) || len(store.audits) != test.count || store.workspaces["workspace-a"].LedgerVersion != int64(test.count) {
+				t.Fatalf("migration result: updated=%d audits=%d ledger=%d", updated, len(store.audits), store.workspaces["workspace-a"].LedgerVersion)
+			}
+		})
 	}
 }
 
