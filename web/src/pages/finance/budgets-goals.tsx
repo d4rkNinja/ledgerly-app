@@ -489,7 +489,7 @@ export function BudgetsPage() {
     : undefined
 
   return (
-    <PageFrame>
+    <PageFrame className="budgets-page planning-page">
       <PageHeader
         title="Budgets"
         description="A calm view of what is safe to spend."
@@ -847,7 +847,7 @@ export function GoalsPage() {
       })
     : undefined
   return (
-    <PageFrame>
+    <PageFrame className="goals-page planning-page">
       <PageHeader
         title="Goals"
         description="Turn longer-term plans into small, visible steps."

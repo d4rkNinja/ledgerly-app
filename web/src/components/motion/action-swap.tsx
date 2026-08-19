@@ -300,7 +300,7 @@ export function ActionSwapButton({
     <motion.button
       type="button"
       disabled={disabled}
-      whileTap={reduce || disabled ? undefined : { scale: 0.97 }}
+      whileTap={reduce || disabled ? undefined : { scale: 0.96 }}
       transition={SPRING_PRESS}
       className={cn(
         "inline-flex items-center justify-center overflow-hidden font-medium transition-colors",

@@ -230,7 +230,7 @@ export function Button({
     <BeUIButton
       variant={beuiVariant}
       size="md"
-      pressScale={0.985}
+      pressScale={0.96}
       ripple={variant === 'primary'}
       className={cn('button', `button-${variant}`, className)}
       {...props}
@@ -258,7 +258,7 @@ export function IconButton({
     <BeUIButton
       variant="ghost"
       size="icon"
-      pressScale={0.97}
+      pressScale={0.96}
       className={cn('icon-button', className)}
       {...props}
       aria-label={label}
@@ -293,7 +293,7 @@ export function Field({
     hint,
   )
   return (
-    <div className="field">
+    <div className="field" data-ui="field" data-state={error ? 'error' : 'default'}>
       <label id={labelId} htmlFor={fieldControl.controlId}>
         {label}
       </label>
@@ -364,6 +364,7 @@ export function EmptyState({
   return (
     <motion.div
       className="state-panel"
+      data-ui="empty-state"
       initial={
         reduce
           ? false
@@ -399,11 +400,12 @@ export function ErrorState({
   return (
     <motion.div
       className="inline-state error-state"
+      data-ui="error-state"
       role="alert"
       initial={
         reduce
           ? false
-          : { y: MOTION_DISTANCE.content }
+          : { opacity: 0, y: MOTION_DISTANCE.content }
       }
       animate={{ opacity: 1, y: 0 }}
       transition={reduce ? { duration: 0 } : TRANSITION_CONTENT}
@@ -475,20 +477,48 @@ export function PageHeader({
   return (
     <motion.header
       className="page-header"
-      initial={
-        reduce
-          ? false
-          : { y: MOTION_DISTANCE.content }
-      }
-      animate={{ opacity: 1, y: 0 }}
-      transition={reduce ? { duration: 0 } : TRANSITION_CONTENT}
+      data-ui="page-header"
+      initial={false}
     >
-      <div>
+      <motion.div
+        className="page-header-copy"
+        initial={
+          reduce
+            ? false
+            : { opacity: 0, y: MOTION_DISTANCE.content, filter: 'blur(4px)' }
+        }
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={reduce ? { duration: 0 } : TRANSITION_CONTENT}
+      >
         {eyebrow ? <span className="page-eyebrow">{eyebrow}</span> : null}
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
-      </div>
-      {actions ? <div className="page-actions">{actions}</div> : null}
+      </motion.div>
+      {actions ? (
+        <motion.div
+          className="page-actions"
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={
+            reduce
+              ? { duration: 0 }
+              : { ...TRANSITION_CONTENT, delay: 0.06 }
+          }
+        >
+          {actions}
+        </motion.div>
+      ) : null}
+      <motion.span
+        className="page-header-accent"
+        aria-hidden="true"
+        initial={reduce ? false : { scaleX: 0 }}
+        animate={{ scaleX: 1 }}
+        transition={
+          reduce
+            ? { duration: 0 }
+            : { duration: 0.42, delay: 0.08, ease: [0.16, 1, 0.3, 1] }
+        }
+      />
     </motion.header>
   )
 }
@@ -530,7 +560,7 @@ export function ListRow({
           : { opacity: 0, y: MOTION_DISTANCE.content / 2 }
       }
       animate={{ opacity: 1, y: 0 }}
-      whileTap={reduce ? undefined : { scale: 0.985 }}
+      whileTap={reduce ? undefined : { scale: 0.96 }}
       transition={reduce ? { duration: 0 } : TRANSITION_FADE}
     >
       {content}
@@ -678,6 +708,7 @@ function DesktopDialog({
           <motion.div
             ref={panelRef}
             className="app-dialog-surface app-morph-dialog"
+            data-ui="dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby={`${dialogId}-title`}
@@ -796,10 +827,11 @@ export function Section({
   return (
     <motion.section
       className={cn('surface-section', className)}
+      data-surface="section"
       initial={
         reduce
           ? false
-          : { y: MOTION_DISTANCE.content }
+          : { opacity: 0, y: MOTION_DISTANCE.content }
       }
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.12 }}

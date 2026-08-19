@@ -26,7 +26,7 @@ export function PageFrame({
   className?: string
 }) {
   return (
-    <div className={`page-stack${className ? ` ${className}` : ''}`}>
+    <div className={`page-stack page-frame${className ? ` ${className}` : ''}`}>
       {children}
     </div>
   )

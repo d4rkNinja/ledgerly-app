@@ -9,8 +9,9 @@ import {
 import { ActionSwapIcon } from '@/components/motion/action-swap'
 import { IconButton } from '@/components/ui'
 import type { Workspace } from '@/domain/types'
+import { useLocation } from 'react-router'
 import type { ResolvedTheme } from '../app-state'
-import { navigationItemById } from './registry'
+import { navigationItemById, navigationRegistry } from './registry'
 import { AppMark } from './workspace-switcher'
 
 const notificationsNavigation = navigationItemById('notifications')
@@ -40,11 +41,16 @@ export function AppTopbar({
   onPrivacyModeChange: (enabled: boolean) => void
   onNavigate: (to: string) => void
 }) {
+  const location = useLocation()
   const notificationLabel =
     unreadNotifications > 0
       ? `Notifications, ${unreadNotifications} unread`
       : 'Notifications'
   const NotificationIcon = notificationsNavigation.icon
+  const activeNavigation = navigationRegistry.find(
+    (item) => item.to === location.pathname,
+  )
+  const ActiveIcon = activeNavigation?.icon
 
   return (
     <header className="topbar">
@@ -63,6 +69,13 @@ export function AppTopbar({
         </span>
         <ChevronDown aria-hidden="true" />
       </button>
+      <div className="topbar-route" aria-hidden="true">
+        {ActiveIcon ? <ActiveIcon /> : null}
+        <span>
+          <small>Workspace</small>
+          <strong>{activeNavigation?.label ?? 'Ledgerly'}</strong>
+        </span>
+      </div>
       <button
         type="button"
         className="global-search"
