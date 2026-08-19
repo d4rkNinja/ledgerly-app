@@ -175,7 +175,7 @@ function Calendar({
   return (
     <div
       ref={calendarRef}
-      className="date-picker-calendar mx-auto w-[min(20rem,calc(100vw-2rem))] p-3 text-foreground"
+      className="date-picker-calendar mx-auto w-[min(21rem,calc(100vw-2rem))] p-3 text-foreground"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <button
@@ -185,11 +185,11 @@ function Calendar({
             setVisibleMonth(previousMonth)
             moveFocus(previousMonth)
           }}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="date-picker-month-button"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </button>
-        <h3 className="text-sm font-semibold" aria-live="polite">
+        <h3 className="date-picker-month-label" aria-live="polite">
           {monthLabel(visibleMonth)}
         </h3>
         <button
@@ -199,17 +199,17 @@ function Calendar({
             setVisibleMonth(nextMonth)
             moveFocus(nextMonth)
           }}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="date-picker-month-button"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[0.7rem] font-medium text-muted-foreground" aria-hidden="true">
+      <div className="date-picker-weekdays" aria-hidden="true">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
           <span key={day} className="py-1">{day}</span>
         ))}
       </div>
-      <div role="grid" aria-label={monthLabel(visibleMonth)} className="grid grid-cols-7 gap-1">
+      <div role="grid" aria-label={monthLabel(visibleMonth)} className="date-picker-days">
         {days.map((day) => {
           const disabled = isOutsideRange(day, min, max)
           const currentMonth = day.slice(0, 7) === visibleMonth.slice(0, 7)
@@ -228,7 +228,7 @@ function Calendar({
               onClick={() => selectDate(day)}
               onKeyDown={(event) => onDayKeyDown(event, day)}
               className={cn(
-                'inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                'date-picker-day',
                 currentMonth ? 'text-foreground' : 'text-muted-foreground/65',
                 isSelected
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90'
@@ -318,7 +318,7 @@ export function DatePicker({
       aria-invalid={error ? true : undefined}
       onClick={mobile ? () => setCalendarOpen(true) : positionPopover}
       className={cn(
-        'date-picker-trigger flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2 text-left text-sm text-foreground outline-none transition-colors',
+        'date-picker-trigger flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-border bg-background px-3 py-2 text-left text-sm text-foreground outline-none transition-colors',
         'hover:border-(--color-border-strong) focus-visible:ring-2 focus-visible:ring-foreground/20',
         'disabled:cursor-not-allowed disabled:opacity-50',
         error ? 'border-destructive focus-visible:ring-destructive/30' : '',
@@ -390,7 +390,7 @@ export function DatePicker({
             type="button"
             disabled={disabled}
             onClick={() => onValueChange('')}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+            className="date-picker-clear"
             aria-label={`Clear ${label}`}
           >
             <X className="h-4 w-4" aria-hidden="true" />

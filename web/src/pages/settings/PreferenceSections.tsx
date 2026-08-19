@@ -32,7 +32,7 @@ function profileInitials(name: string) {
     .map((part) => part[0])
     .join('')
     .toUpperCase()
-  return initials || '—'
+  return initials || '?'
 }
 
 export function ProfileSection({

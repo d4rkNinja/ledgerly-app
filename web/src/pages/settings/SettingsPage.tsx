@@ -208,7 +208,7 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="page-stack settings-page">
+    <div className="page-stack page-frame settings-page">
       <PageHeader
         title="Settings"
         description="Privacy and preferences, in one place."

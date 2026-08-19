@@ -37,7 +37,7 @@ import {
 export function MorePage() {
   const reduce = useReducedMotion()
   return (
-    <PageFrame className="mobile-more-page">
+    <PageFrame className="mobile-more-page more-page support-page">
       <PageHeader title="More" description="All your tools and settings." />
       <Section className="share-center">
         <div className="share-center-heading">
@@ -69,7 +69,7 @@ export function MorePage() {
                 delay: reduce ? 0 : index * 0.04,
                 ease: [0.16, 1, 0.3, 1],
               }}
-              whileTap={reduce ? undefined : { scale: 0.985 }}
+              whileTap={reduce ? undefined : { scale: 0.96 }}
             >
               <Icon aria-hidden="true" />
               <strong>{String(label)}</strong>
@@ -96,7 +96,7 @@ export function MorePage() {
             className="more-link"
             key={String(label)}
             to={String(to)}
-            whileTap={reduce ? undefined : { scale: 0.985 }}
+            whileTap={reduce ? undefined : { scale: 0.96 }}
             transition={reduce ? { duration: 0 } : SPRING_PRESS}
           >
             <span><Icon aria-hidden="true" /></span>
@@ -112,7 +112,7 @@ export function MorePage() {
 export function HelpPage() {
   const reduce = useReducedMotion()
   return (
-    <PageFrame>
+    <PageFrame className="help-page support-page">
       <PageHeader title="Help and support" description="Answers without financial jargon." />
       <label className="help-search">
         <Search aria-hidden="true" />

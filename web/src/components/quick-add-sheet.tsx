@@ -70,19 +70,19 @@ function QuickAddGroup({
   if (!actions.length) return null
 
   return (
-    <section aria-labelledby={labelId}>
+    <section className="quick-add-group" aria-labelledby={labelId}>
       <h3
         id={labelId}
-        className="mb-2 text-xs font-semibold text-muted-foreground"
+        className="quick-add-group-title"
       >
         {label}
       </h3>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="quick-add-grid">
         {actions.map((action, index) => (
           <motion.button
             key={action.to}
             type="button"
-            className="flex min-h-24 items-start gap-3 rounded-2xl border border-border bg-muted/35 p-3 text-left text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="quick-add-action"
             initial={
               reduce
                 ? false
@@ -100,15 +100,15 @@ function QuickAddGroup({
                     duration: 0.24,
                   }
             }
-            whileTap={reduce ? undefined : { scale: 0.975 }}
+            whileTap={reduce ? undefined : { scale: 0.96 }}
             onClick={() => onSelect(action.to)}
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-primary">
+            <span className="quick-add-action-icon">
               <action.icon aria-hidden="true" />
             </span>
-            <span className="min-w-0">
-              <strong className="block text-sm leading-5">{action.label}</strong>
-              <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">
+            <span className="quick-add-action-copy">
+              <strong>{action.label}</strong>
+              <span>
                 {action.description}
               </span>
             </span>
@@ -220,10 +220,10 @@ export function QuickAddSheet({
       title="Quick add"
       description="Choose what you want to record or plan."
     >
-      <div className="grid gap-5 pb-2 pt-2">
+      <div className="quick-add-content">
         {demoMode ? (
           <div
-            className="rounded-2xl border border-border bg-muted/35 px-4 py-3 text-xs leading-5 text-muted-foreground"
+            className="quick-add-note"
             role="status"
           >
             Demo additions stay in memory until you refresh and never call the
@@ -249,7 +249,7 @@ export function QuickAddSheet({
         !planningItems.length &&
         !workItems.length ? (
           <div
-            className="rounded-2xl border border-border bg-muted/35 p-4 text-sm text-muted-foreground"
+            className="quick-add-empty"
             role="status"
           >
             Your current role does not include any create actions.

@@ -28,15 +28,23 @@ const INSTANT_TRANSITION: Transition = { duration: 0 };
 
 // Spring with bounce powers the unfold/separation; per-property timings in the
 // content choreograph it (see SelectContent). Mirrors bouncy-accordion's feel.
-const CHEVRON_TRANSITION: Transition = { type: "spring", duration: 0.3, bounce: 0 };
+const CHEVRON_TRANSITION: Transition = { duration: 0.18, ease: EASE_OUT };
 
 const LIST_VARIANTS: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.035, delayChildren: 0.05 } },
 };
 const ITEM_VARIANTS: Variants = {
-  hidden: { opacity: 0, y: -6, filter: "blur(3px)" },
-  show: { opacity: 1, y: 0, filter: "blur(0px)" },
+  hidden: {
+    opacity: 0,
+    transform: "translateY(-4px)",
+    filter: "blur(2px)",
+  },
+  show: {
+    opacity: 1,
+    transform: "translateY(0)",
+    filter: "blur(0px)",
+  },
 };
 
 type Placement = "bottom" | "top";
@@ -208,7 +216,12 @@ export function Select({
 
   return (
     <SelectContext.Provider value={ctx}>
-      <div ref={rootRef} className={cn("relative", className)}>
+      <div
+        ref={rootRef}
+        className={cn("relative", className)}
+        data-ui="select"
+        data-state={open ? "open" : "closed"}
+      >
         {children}
       </div>
     </SelectContext.Provider>
@@ -233,15 +246,6 @@ export function SelectTrigger({
   ...props
 }: SelectTriggerProps & SelectTriggerButtonProps) {
   const ctx = useSelectContext("SelectTrigger");
-  const isTop = ctx.placement === "top";
-  // edge facing the panel flattens then rounds; the far edge stays rounded.
-  // All four corners are specified so none gets stranded when placement flips.
-  const kf = ctx.open ? [0, 0, 12] : [12, 0, 12];
-  const kfT: Transition = ctx.reduce
-    ? { duration: 0 }
-    : ctx.open
-      ? { duration: 0.6, times: [0, 0.4, 1], ease: EASE_OUT }
-      : { duration: 0.42, times: [0, 0.5, 1], ease: EASE_OUT };
   return (
     <motion.button
       type="button"
@@ -249,26 +253,14 @@ export function SelectTrigger({
       disabled={props.disabled ?? ctx.disabled}
       aria-haspopup="listbox"
       aria-expanded={ctx.open}
+      data-ui="select-trigger"
+      data-state={ctx.open ? "open" : "closed"}
       aria-controls={props["aria-controls"] ?? ctx.listId}
       onClick={(event) => {
         props.onClick?.(event);
         if (!event.defaultPrevented) ctx.setOpen(!ctx.open);
       }}
-      // Gooey: the edge facing the panel snaps flat (panel attached) then rounds
-      // back once the panel pulls away — the two pinch apart.
       initial={false}
-      animate={{
-        borderTopLeftRadius: isTop ? kf : 12,
-        borderTopRightRadius: isTop ? kf : 12,
-        borderBottomLeftRadius: isTop ? 12 : kf,
-        borderBottomRightRadius: isTop ? 12 : kf,
-      }}
-      transition={{
-        borderTopLeftRadius: isTop ? kfT : INSTANT_TRANSITION,
-        borderTopRightRadius: isTop ? kfT : INSTANT_TRANSITION,
-        borderBottomLeftRadius: isTop ? INSTANT_TRANSITION : kfT,
-        borderBottomRightRadius: isTop ? INSTANT_TRANSITION : kfT,
-      }}
       className={cn(
         "relative z-10 flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors",
         "hover:border-(--color-border-strong) focus-visible:ring-2 focus-visible:ring-foreground/20",
@@ -281,7 +273,9 @@ export function SelectTrigger({
       {hideIndicator ? null : (
         <motion.span
           aria-hidden
-          animate={{ rotate: ctx.open ? 180 : 0 }}
+          animate={{
+            transform: ctx.open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
           transition={ctx.reduce ? { duration: 0 } : CHEVRON_TRANSITION}
           className="text-muted-foreground"
         >
@@ -317,7 +311,6 @@ export interface SelectContentProps {
 export function SelectContent({ className, children }: SelectContentProps) {
   const ctx = useSelectContext("SelectContent");
   const innerRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState(0);
   const [maxHeight, setMaxHeight] = useState(SELECT_MAX_HEIGHT);
   const open = ctx.open;
   const { setPlacement } = ctx;
@@ -331,10 +324,6 @@ export function SelectContent({ className, children }: SelectContentProps) {
       setPlacement(layout.placement);
       setMaxHeight((current) =>
         current === layout.maxHeight ? current : layout.maxHeight,
-      );
-      const panelHeight = Math.min(node.scrollHeight, layout.maxHeight);
-      setHeight((current) =>
-        current === panelHeight ? current : panelHeight,
       );
     };
     measure();
@@ -354,24 +343,11 @@ export function SelectContent({ className, children }: SelectContentProps) {
     };
   }, [ctx.triggerId, setPlacement]);
 
-  // Specify EVERY corner + both margins each render. The near edge (facing the
-  // trigger) animates flat->round and the gap opens on that side; the far edge
-  // stays rounded and its margin pinned to 0. Setting all of them avoids a
-  // stranded square corner when the placement flips between opens.
   const isTop = ctx.placement === "top";
-  const nearGap = open ? 8 : 0;
-  const nearRadius = open ? 12 : 0;
 
-  const gapT: Transition = open
-    ? { type: "spring", duration: 0.3, bounce: 0, delay: 0.08 }
-    : { type: "spring", duration: 0.22, bounce: 0 };
-  const radiusT: Transition = open
-    ? { duration: 0.3, ease: EASE_OUT, delay: 0.14 }
-    : { duration: 0.16, ease: EASE_OUT };
-
-  // Items stay mounted (open just animates the panel) so each item's label
-  // registration persists — otherwise the trigger would fall back to the
-  // placeholder the moment the panel closes.
+  // Items stay mounted so their labels remain registered after close. The
+  // absolutely positioned panel can stay at natural height; only compositor-
+  // friendly properties animate.
   return (
     <motion.div
       id={ctx.listId}
@@ -380,50 +356,27 @@ export function SelectContent({ className, children }: SelectContentProps) {
       aria-hidden={!open}
       inert={!open}
       initial={false}
-      animate={
-        ctx.reduce
-          ? { opacity: open ? 1 : 0, height: open ? height : 0 }
-          : {
-              opacity: open ? 1 : 0,
-              height: open ? height : 0,
-              // gap opens on the side facing the trigger
-              marginTop: isTop ? 0 : nearGap,
-              marginBottom: isTop ? nearGap : 0,
-              // near corners go flat->round; far corners stay rounded
-              borderTopLeftRadius: isTop ? 12 : nearRadius,
-              borderTopRightRadius: isTop ? 12 : nearRadius,
-              borderBottomLeftRadius: isTop ? nearRadius : 12,
-              borderBottomRightRadius: isTop ? nearRadius : 12,
-            }
-      }
+      animate={{
+        opacity: open ? 1 : 0,
+        transform:
+          open || ctx.reduce
+            ? "translateY(0) scale(1)"
+            : `translateY(${isTop ? "4px" : "-4px"}) scale(0.985)`,
+      }}
       transition={
         ctx.reduce
-          ? { duration: 0.12 }
-          : {
-              opacity: open
-                ? { duration: 0.18 }
-                : { duration: 0.16, delay: 0.12 },
-              height: open
-                ? { type: "spring", duration: 0.3, bounce: 0 }
-                : { duration: 0.26, ease: EASE_OUT, delay: 0.14 },
-              marginTop: isTop ? INSTANT_TRANSITION : gapT,
-              marginBottom: isTop ? gapT : INSTANT_TRANSITION,
-              borderTopLeftRadius: isTop ? INSTANT_TRANSITION : radiusT,
-              borderTopRightRadius: isTop ? INSTANT_TRANSITION : radiusT,
-              borderBottomLeftRadius: isTop ? radiusT : INSTANT_TRANSITION,
-              borderBottomRightRadius: isTop ? radiusT : INSTANT_TRANSITION,
-            }
+          ? INSTANT_TRANSITION
+          : { duration: open ? 0.18 : 0.14, ease: EASE_OUT }
       }
       style={{
         transformOrigin: isTop ? "bottom" : "top",
-        overflow: "hidden",
         pointerEvents: open ? "auto" : "none",
       }}
-      // flush against the trigger, then separates into its own rounded pill;
-      // sits above or below depending on available space
+      data-ui="select-content"
+      data-state={open ? "open" : "closed"}
       className={cn(
         "absolute left-0 right-0 z-20 rounded-xl border border-border bg-background shadow-lg",
-        isTop ? "bottom-full" : "top-full",
+        isTop ? "bottom-full mb-2" : "top-full mt-2",
         className,
       )}
     >

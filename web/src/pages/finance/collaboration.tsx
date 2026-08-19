@@ -278,7 +278,7 @@ export function FamilyPage() {
     'view_audit_history',
   )
   return (
-    <PageFrame>
+    <PageFrame className="members-page collaboration-page">
       <PageHeader
         title="Members"
         description="Manage private workspace access, roles, and invitations."
@@ -1251,7 +1251,7 @@ export function OfficePage() {
   )
 
   return (
-    <PageFrame>
+    <PageFrame className="office-page collaboration-page">
       <PageHeader
         title="Office expenses"
         description="Submit, approve, and reimburse with a clear audit trail."

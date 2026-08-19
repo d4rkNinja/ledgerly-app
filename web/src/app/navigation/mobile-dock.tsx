@@ -123,7 +123,7 @@ export function MobileNavigationDock({
                           : 'Your role does not include create actions'
                       }
                       className="dock-link bg-transparent p-0"
-                      whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                      whileTap={reduceMotion ? undefined : { scale: 0.96 }}
                       transition={
                         reduceMotion ? { duration: 0 } : SPRING_PRESS
                       }
@@ -145,7 +145,7 @@ export function MobileNavigationDock({
                       aria-current={active ? 'page' : undefined}
                       className="dock-link"
                       onClick={() => void selectionHaptic()}
-                      whileTap={reduceMotion ? undefined : { scale: 0.94 }}
+                      whileTap={reduceMotion ? undefined : { scale: 0.96 }}
                       transition={
                         reduceMotion ? { duration: 0 } : SPRING_PRESS
                       }

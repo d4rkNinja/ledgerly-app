@@ -119,7 +119,7 @@ export function AccountsPage() {
       })
     : undefined
   return (
-    <PageFrame>
+    <PageFrame className="accounts-page">
       <PageHeader
         title="Accounts"
         description="Balances stay separated by currency and owner."

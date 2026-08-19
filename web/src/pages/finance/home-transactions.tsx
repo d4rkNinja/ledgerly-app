@@ -232,7 +232,7 @@ function CreatorAvatar({
       {creator?.profileImageUrl ? (
         <img src={creator.profileImageUrl} alt="" />
       ) : (
-        creator?.initials ?? '—'
+        creator?.initials ?? '?'
       )}
     </span>
   )
@@ -748,7 +748,7 @@ export function HomePage() {
     yearDashboardQuery.isLoading
   ) {
     return (
-      <PageFrame>
+      <PageFrame className="home-page overview-page">
         <PageHeader
           eyebrow={workspace.name}
           title={`Good morning, ${userName.split(' ')[0]}`}
@@ -775,7 +775,7 @@ export function HomePage() {
       yearDashboardQuery.isError ? 'year summary' : '',
     ].filter(Boolean)
     return (
-      <PageFrame>
+      <PageFrame className="home-page overview-page">
         <PageHeader
           eyebrow={workspace.name}
           title={`Good morning, ${userName.split(' ')[0]}`}
@@ -851,7 +851,7 @@ export function HomePage() {
     ? 'All time'
     : period.mode === 'this-month' || period.mode === 'last-month' || period.mode === 'custom-month'
     ? selectedMonthLabel
-    : `${formatDate(`${period.from}T12:00:00.000Z`)} – ${formatDate(`${period.to}T12:00:00.000Z`)}`
+    : `${formatDate(`${period.from}T12:00:00.000Z`)} to ${formatDate(`${period.to}T12:00:00.000Z`)}`
   const balancePeriodLabel = balancePeriod === 'year'
     ? `Current year · ${currentYear}`
     : `Selected month · ${selectedMonthLabel}`
@@ -913,7 +913,7 @@ export function HomePage() {
 
   if (!activeAccounts.length) {
     return (
-      <PageFrame>
+      <PageFrame className="home-page overview-page">
         <PageHeader
           eyebrow={workspace.name}
           title={`Good morning, ${userName.split(' ')[0]}`}
@@ -939,7 +939,7 @@ export function HomePage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame className="home-page overview-page">
       <PageHeader
         eyebrow={workspace.name}
         title={`Good morning, ${userName.split(' ')[0]}`}
@@ -1139,7 +1139,7 @@ export function HomePage() {
             <div><span>Due soon</span><strong>{dashboard.goalSummary.dueSoonCount + dashboard.goalSummary.dueTodayCount}</strong></div>
             <div><span>Overdue</span><strong>{dashboard.goalSummary.overdueCount}</strong></div>
             <div><span>Achieved</span><strong>{dashboard.goalSummary.achievedCount}</strong></div>
-            <div><span>Completion</span><strong>{dashboard.goalSummary.completionPercent == null ? '—' : `${dashboard.goalSummary.completionPercent.toFixed(0)}%`}</strong></div>
+            <div><span>Completion</span><strong>{dashboard.goalSummary.completionPercent == null ? 'Not available' : `${dashboard.goalSummary.completionPercent.toFixed(0)}%`}</strong></div>
           </div>
           <p className="dashboard-planned-note">
             All active goals: {dashboard.allActiveGoals.activeCount} · remaining{' '}
@@ -1358,7 +1358,7 @@ export function HomePage() {
             <MotionListItem key={String(label)} index={index}>
               <MotionLink
                 to={String(to)}
-                whileTap={reduce ? undefined : { scale: 0.97 }}
+                whileTap={reduce ? undefined : { scale: 0.96 }}
                 transition={reduce ? { duration: 0 } : SPRING_PRESS}
               >
                 <span>
@@ -1654,11 +1654,11 @@ export function HomePage() {
           <Link to={dashboardDrilldownPath(period, 'type', 'expense')}>Review expenses</Link>
         </div>
         <div className="month-details-grid" aria-label="Month detail summary">
-          <div><span>Largest income</span><strong>{dashboard.monthDetails.largestIncome?.label ?? 'No income yet'}</strong><small>{dashboard.monthDetails.largestIncome ? formatMoney({ amountMinor: dashboard.monthDetails.largestIncome.amountMinor, currency: dashboard.currency }) : '—'}</small></div>
-          <div><span>Largest expense</span><strong>{dashboard.monthDetails.largestExpense?.label ?? 'No expense yet'}</strong><small>{dashboard.monthDetails.largestExpense ? formatMoney({ amountMinor: dashboard.monthDetails.largestExpense.amountMinor, currency: dashboard.currency }) : '—'}</small></div>
+          <div><span>Largest income</span><strong>{dashboard.monthDetails.largestIncome?.label ?? 'No income yet'}</strong><small>{dashboard.monthDetails.largestIncome ? formatMoney({ amountMinor: dashboard.monthDetails.largestIncome.amountMinor, currency: dashboard.currency }) : 'Not available'}</small></div>
+          <div><span>Largest expense</span><strong>{dashboard.monthDetails.largestExpense?.label ?? 'No expense yet'}</strong><small>{dashboard.monthDetails.largestExpense ? formatMoney({ amountMinor: dashboard.monthDetails.largestExpense.amountMinor, currency: dashboard.currency }) : 'Not available'}</small></div>
           <div><span>Most active day</span><strong>{dashboard.monthDetails.mostActiveDay ? formatDate(`${dashboard.monthDetails.mostActiveDay}T12:00:00.000Z`) : 'No activity yet'}</strong><small>Based on entry count</small></div>
           <div><span>Top spending category</span><strong>{dashboard.monthDetails.topSpendingCategory ?? 'No category yet'}</strong><small>Actual expenses only</small></div>
-          <div><span>Highest-value contact</span><strong>{dashboard.monthDetails.highestValueContact?.name ?? 'No contact yet'}</strong><small>{dashboard.monthDetails.highestValueContact ? formatMoney({ amountMinor: dashboard.monthDetails.highestValueContact.incomeMinor + dashboard.monthDetails.highestValueContact.paidMinor, currency: dashboard.currency }) : '—'}</small></div>
+          <div><span>Highest-value contact</span><strong>{dashboard.monthDetails.highestValueContact?.name ?? 'No contact yet'}</strong><small>{dashboard.monthDetails.highestValueContact ? formatMoney({ amountMinor: dashboard.monthDetails.highestValueContact.incomeMinor + dashboard.monthDetails.highestValueContact.paidMinor, currency: dashboard.currency }) : 'Not available'}</small></div>
           <div><span>Repeated entries</span><strong>{dashboard.monthDetails.repeatedTransactions.length || 'None detected'}</strong><small>Same label, type, category, and amount</small></div>
         </div>
         {dashboard.monthDetails.repeatedTransactions.length ? (
@@ -3165,7 +3165,7 @@ export function TransactionsPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame className="transactions-page records-page">
       <PageHeader
         title="Transactions"
         description="Every movement, with context."

@@ -334,7 +334,7 @@ export function NotificationsPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame className={activityView ? 'activity-page timeline-page' : 'notifications-page timeline-page'}>
       <PageHeader
         title={activityView ? 'Activity' : 'Notifications'}
         description={

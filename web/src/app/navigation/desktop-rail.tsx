@@ -9,6 +9,13 @@ import {
 } from './registry'
 import { AppMark, DesktopWorkspaceSwitcher } from './workspace-switcher'
 
+const overviewNavigation = primaryNavigation.filter((item) =>
+  ['home', 'transactions', 'accounts'].includes(item.id),
+)
+const planningNavigation = primaryNavigation.filter(
+  (item) => !overviewNavigation.includes(item),
+)
+
 function formatRoleLabel(role: Workspace['role']) {
   const normalized =
     role === 'admin' ? 'administrator' : role.replaceAll('_', ' ')
@@ -71,7 +78,15 @@ export function DesktopRail({
         onDelete={onWorkspaceDelete}
       />
       <nav className="side-navigation" aria-label="Main navigation">
-        {primaryNavigation.map((item) => (
+        <span className="nav-group-label">Overview</span>
+        {overviewNavigation.map((item) => (
+          <NavLink key={item.id} to={item.to}>
+            <item.icon aria-hidden="true" />
+            {item.label}
+          </NavLink>
+        ))}
+        <span className="nav-group-label">Plan</span>
+        {planningNavigation.map((item) => (
           <NavLink key={item.id} to={item.to}>
             <item.icon aria-hidden="true" />
             {item.label}

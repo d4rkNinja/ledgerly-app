@@ -173,7 +173,7 @@ export function PeriodSelector({ value, onChange, onClear }: PeriodSelectorProps
         </div>
       ) : null}
       <div className="dashboard-period-selector-footer">
-        <span>{formatDateOnly(value.from)} – {formatDateOnly(value.to)}</span>
+        <span>{formatDateOnly(value.from)} to {formatDateOnly(value.to)}</span>
         <button type="button" className="dashboard-period-clear" onClick={onClear}>
           <RotateCcw aria-hidden="true" />
           Clear range

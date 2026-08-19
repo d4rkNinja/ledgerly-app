@@ -122,7 +122,7 @@ function DirectoryCard({
         delay: reduce ? 0 : Math.min(index * 0.045, 0.2),
         ease: [0.16, 1, 0.3, 1],
       }}
-      whileTap={reduce ? undefined : { scale: 0.985 }}
+      whileTap={reduce ? undefined : { scale: 0.96 }}
     >
       <span className="directory-card-header">
         <span className="directory-card-symbol" aria-hidden="true">
@@ -162,7 +162,7 @@ function AddDirectoryCard({
       type="button"
       className="directory-add-card"
       onClick={onClick}
-      whileTap={reduce ? undefined : { scale: 0.985 }}
+      whileTap={reduce ? undefined : { scale: 0.96 }}
     >
       <span aria-hidden="true"><Plus /></span>
       <strong>{label}</strong>
@@ -414,7 +414,7 @@ export function ContactsPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame className="contacts-page directory-page">
       <PageHeader
         title="Contacts"
         description="Reusable people for clearer, faster transaction entries."
@@ -637,7 +637,7 @@ export function SavedTransactionNamesPage() {
   }
 
   return (
-    <PageFrame>
+    <PageFrame className="saved-names-page directory-page">
       <PageHeader
         title="Saved names"
         description="Reusable transaction labels for faster, more consistent entries."

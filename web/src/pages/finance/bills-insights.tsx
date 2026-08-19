@@ -76,7 +76,7 @@ export function BillsPage() {
       })
     : null
   return (
-    <PageFrame>
+    <PageFrame className="bills-page timeline-page">
       <PageHeader
         title="Bills"
         description="Know what is due before it becomes urgent."
@@ -207,7 +207,7 @@ function LiveInsightsPage() {
 
   if (reportQuery.isLoading) {
     return (
-      <PageFrame>
+      <PageFrame className="insights-page analytics-page">
         <PageHeader
           title="Insights"
           description="Loading this month's factual summary."
@@ -218,7 +218,7 @@ function LiveInsightsPage() {
   }
   if (reportQuery.isError || !reportQuery.data) {
     return (
-      <PageFrame>
+      <PageFrame className="insights-page analytics-page">
         <PageHeader
           title="Insights"
           description="A factual summary of activity in the current month."
@@ -254,7 +254,7 @@ function LiveInsightsPage() {
   const reportPeriod = new Date(period.from)
 
   return (
-    <PageFrame>
+    <PageFrame className="insights-page analytics-page">
       <PageHeader
         title="Insights"
         description="A factual summary of activity in the current month."
@@ -421,7 +421,7 @@ export function InsightsPage() {
     { week: 4, income: 68, spending: 88 },
   ]
   return (
-    <PageFrame>
+    <PageFrame className="insights-page analytics-page">
       <PageHeader
         title="Insights"
         description="Patterns that help you decide what to change."
