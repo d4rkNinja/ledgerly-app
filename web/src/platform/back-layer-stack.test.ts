@@ -10,7 +10,7 @@ import {
 import { MotionConfig } from 'motion/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DesktopWorkspaceSwitcher } from '@/app/navigation/workspace-switcher'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { Dialog } from '@/components/ui'
 import { WorkspaceSearch } from '@/components/workspace-search'
 import type { Workspace } from '@/domain/types'

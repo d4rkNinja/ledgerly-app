@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import type { RefObject } from 'react'
 import { CurrencySelect } from '@/components/currency-select'
-import { Checkbox } from '@/components/motion/checkbox'
+import { Checkbox } from '@/components/beui/checkbox'
 import { Field } from '@/components/ui'
 import { PasswordVisibilityButton } from './AuthPrimitives'
 

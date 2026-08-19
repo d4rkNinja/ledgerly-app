@@ -1,4 +1,5 @@
 "use client";
+// beui.dev/components/motion/switch
 
 import { animate, motion, MotionConfig, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
@@ -12,13 +13,18 @@ export interface SwitchProps {
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean;
   label?: string;
+  ariaLabel?: string;
   className?: string;
-  "aria-label"?: string;
-  "aria-labelledby"?: string;
-  "aria-describedby"?: string;
 }
 
-export function Switch({ checked, onCheckedChange, disabled, label, className, "aria-label": ariaLabel, "aria-labelledby": ariaLabelledBy, "aria-describedby": ariaDescribedBy }: SwitchProps) {
+export function Switch({
+  checked,
+  onCheckedChange,
+  disabled,
+  label,
+  ariaLabel,
+  className,
+}: SwitchProps) {
   const id = useId();
   const thumbRef = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
@@ -48,8 +54,6 @@ export function Switch({ checked, onCheckedChange, disabled, label, className, "
           role="switch"
           aria-checked={checked}
           aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          aria-describedby={ariaDescribedBy}
           disabled={disabled}
           onClick={() => !disabled && onCheckedChange(!checked)}
           onPointerDown={(e) => {

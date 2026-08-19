@@ -142,7 +142,6 @@ function createToast(input: ToastInput, defaultDuration: number): AnimatedToast 
   };
 }
 
-// oxlint-disable-next-line react/only-export-components -- The state hook is intentionally exported with its matching toast stack component.
 export function useAnimatedToastStack({
   initialToasts = [],
   defaultDuration = 4200,
@@ -284,7 +283,6 @@ export function AnimatedToastStack({
     <ol
       aria-live="polite"
       aria-atomic="false"
-      data-modal-isolation-exempt={shouldPortal ? "" : undefined}
       className={cn(
         "pointer-events-none flex w-[calc(100vw-2rem)] max-w-sm gap-2",
         isBottom ? "flex-col-reverse" : "flex-col",

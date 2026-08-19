@@ -16,7 +16,7 @@ import { ApiError, api } from '@/lib/api-client'
 import {
   MOTION_DISTANCE,
   TRANSITION_CONTENT,
-} from '@/lib/ease'
+} from '@/lib/app-motion'
 import {
   AnimatedFormAlert,
   BrandMark,

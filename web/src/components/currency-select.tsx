@@ -11,7 +11,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './motion/select'
+} from './beui/select'
 
 export function CurrencySelect({
   value,

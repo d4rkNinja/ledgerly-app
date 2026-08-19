@@ -11,7 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { selectionHaptic } from '@/platform/haptics'
 
 type QuickAddAction = {

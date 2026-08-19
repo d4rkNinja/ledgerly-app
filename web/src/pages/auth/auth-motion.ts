@@ -1,7 +1,7 @@
 import {
   MOTION_DISTANCE,
   TRANSITION_CONTENT,
-} from '@/lib/ease'
+} from '@/lib/app-motion'
 
 export function entrance(reducedMotion: boolean, delay = 0) {
   return {

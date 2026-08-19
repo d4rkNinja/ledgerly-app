@@ -8,62 +8,16 @@ import {
   useDragControls,
   useReducedMotion,
 } from "motion/react";
-import { X } from "lucide-react";
-import {
-  type ReactNode,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { EASE_DRAWER } from "@/lib/ease";
-import { isolateBodySiblings } from "@/lib/modal-isolation";
+import { TOUCH_GESTURE_CONTENT_CLASS } from "@/lib/touch";
 import { cn } from "@/lib/utils";
-import { registerBackLayer } from "@/platform/back-layer-stack";
-import { lockBodyScroll } from "@/platform/body-scroll-lock";
 
 // Vaul-style glide: a long, fully-damped tween reads smoother than a spring on
 // open — no settle/overshoot, just one clean decel. Same curve drives the
 // backdrop fade so the surface and scrim move as one.
 const DRAWER = { duration: 0.5, ease: EASE_DRAWER } as const;
-
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
-
-function getFocusableElements(root: HTMLElement | null) {
-  if (!root) return [];
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-  ).filter((element) => element.tabIndex >= 0);
-}
-
-function getInitialFocusElement(root: HTMLElement | null) {
-  if (!root) return null;
-
-  const activeElement = document.activeElement;
-  if (
-    activeElement instanceof HTMLElement &&
-    root.contains(activeElement) &&
-    !activeElement.hasAttribute('data-modal-close')
-  ) {
-    return activeElement;
-  }
-
-  const focusable = getFocusableElements(root);
-  return (
-    focusable.find((element) => element.hasAttribute('autofocus')) ??
-    focusable.find((element) => !element.hasAttribute('data-modal-close')) ??
-    focusable[0] ??
-    root
-  );
-}
 
 export interface BottomSheetProps {
   open: boolean;
@@ -77,8 +31,6 @@ export interface BottomSheetProps {
   className?: string;
   /** Min drag distance (px) past current snap to dismiss. */
   dismissThreshold?: number;
-  /** Show a visible close control. Default true. */
-  showCloseButton?: boolean;
 }
 
 export function BottomSheet({
@@ -91,19 +43,16 @@ export function BottomSheet({
   children,
   className,
   dismissThreshold = 120,
-  showCloseButton = true,
 }: BottomSheetProps) {
   const [snap, setSnap] = useState(defaultSnap);
   const [mounted, setMounted] = useState(false);
   const dragControls = useDragControls();
-  const overlayRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-  const onOpenChangeRef = useRef(onOpenChange);
   const reduce = useReducedMotion();
   const heightRef = useRef(0);
-  const titleId = useId();
-  const descriptionId = useId();
+  const uid = useId();
+  const titleId = `${uid}-title`;
+  const descriptionId = `${uid}-description`;
 
   useEffect(() => {
     setMounted(true);
@@ -113,96 +62,45 @@ export function BottomSheet({
     if (open) setSnap(defaultSnap);
   }, [open, defaultSnap]);
 
-  useEffect(() => {
-    onOpenChangeRef.current = onOpenChange;
-  }, [onOpenChange]);
-
-  useEffect(() => {
-    if (!open) return;
-    return registerBackLayer(() => onOpenChangeRef.current(false));
-  }, [open]);
-
+  // Lock background scroll while open. overflow:hidden alone is ignored by
+  // iOS Safari — boundary scrolls inside the sheet chain to the page, which
+  // scrolls underneath and ends up somewhere else on close. position:fixed
+  // is the lock that actually holds; restore the scroll position after.
   useEffect(() => {
     if (!open) return;
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
-
-    let restoreIsolation = () => {};
-    const focusSheet = () => {
-      getInitialFocusElement(sheetRef.current)?.focus();
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const prev = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      overflow: body.style.overflow,
     };
-    const focusFrame = requestAnimationFrame(() => {
-      if (overlayRef.current) {
-        restoreIsolation = isolateBodySiblings(overlayRef.current);
-      }
-      focusSheet();
-    });
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.overflow = "hidden";
 
-    const onFocusIn = (event: FocusEvent) => {
-      const openSheets = document.querySelectorAll<HTMLElement>(
-        '[data-bottom-sheet="true"]',
-      );
-      if (openSheets.item(openSheets.length - 1) !== sheetRef.current) return;
-
-      const target = event.target;
-      if (
-        target instanceof Node &&
-        sheetRef.current &&
-        !sheetRef.current.contains(target)
-      ) {
-        focusSheet();
-      }
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
+    const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onOpenChangeRef.current(false);
-        return;
-      }
-      if (event.key !== "Tab") return;
-
-      const focusable = getFocusableElements(sheetRef.current);
-
-      if (!focusable.length) {
-        event.preventDefault();
-        sheetRef.current?.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
+        onOpenChange(false);
       }
     };
+    window.addEventListener("keydown", onKey);
 
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("focusin", onFocusIn);
     return () => {
-      cancelAnimationFrame(focusFrame);
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("focusin", onFocusIn);
-      restoreIsolation();
-      const previousFocus = previousFocusRef.current;
-      if (
-        previousFocus?.isConnected &&
-        !previousFocus.closest("[inert]")
-      ) {
-        previousFocus.focus();
-      }
+      window.removeEventListener("keydown", onKey);
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.left = prev.left;
+      body.style.right = prev.right;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
     };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    return lockBodyScroll();
-  }, [open]);
+  }, [open, onOpenChange]);
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     const velocity = info.velocity.y;
@@ -233,15 +131,11 @@ export function BottomSheet({
     });
   };
 
-  const snapValue = snapPoints[snap] ?? "auto";
-  const safeSnapValue =
-    typeof snapValue === "number"
-      ? Math.min(1, Math.max(0.2, snapValue))
-      : snapValue;
+  const snapValue = snapPoints[snap];
   const heightStyle =
-    safeSnapValue === "auto"
-      ? { maxHeight: "92dvh" }
-      : { height: `${safeSnapValue * 100}dvh` };
+    snapValue === "auto"
+      ? { maxHeight: "92vh" }
+      : { height: `${snapValue * 100}vh` };
 
   // Portal to <body>: an ancestor with backdrop-filter or transform becomes
   // the containing block for fixed descendants, which would position the
@@ -251,16 +145,14 @@ export function BottomSheet({
   return createPortal(
     <AnimatePresence>
       {open ? (
-        <div
-          ref={overlayRef}
-          className="pointer-events-none fixed inset-0 z-50"
-        >
-          <motion.div
-            aria-hidden="true"
+        <div className="pointer-events-none fixed inset-0 z-50">
+          <motion.button
+            type="button"
+            aria-label="Close bottom sheet"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={reduce ? { duration: 0 } : DRAWER}
+            transition={DRAWER}
             onClick={() => onOpenChange(false)}
             // A dim scrim with a light blur. backdrop-blur is GPU-expensive and
             // re-rasterizes every frame the sheet drags over it; a small radius
@@ -279,7 +171,7 @@ export function BottomSheet({
             initial={reduce ? { y: 0, opacity: 0 } : { y: "100%" }}
             animate={reduce ? { y: 0, opacity: 1 } : { y: 0 }}
             exit={reduce ? { y: 0, opacity: 0 } : { y: "100%" }}
-            transition={reduce ? { duration: 0 } : DRAWER}
+            transition={reduce ? { duration: 0.18, ease: EASE_DRAWER } : DRAWER}
             onAnimationComplete={() => {
               if (sheetRef.current)
                 heightRef.current = sheetRef.current.offsetHeight;
@@ -291,31 +183,26 @@ export function BottomSheet({
               className,
             )}
             role="dialog"
-            data-bottom-sheet="true"
             aria-modal="true"
-            aria-label={title ? undefined : "Bottom sheet"}
             aria-labelledby={title ? titleId : undefined}
             aria-describedby={description ? descriptionId : undefined}
-            tabIndex={-1}
+            aria-label={title ? undefined : "Bottom sheet"}
           >
-            {showCloseButton ? (
-              <button
-                type="button"
-                data-modal-close=""
-                aria-label="Close bottom sheet"
-                onClick={() => onOpenChange(false)}
-                className="absolute right-3 top-3 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground"
+            <div className="flex flex-col items-center px-4 pb-2 pt-3">
+              {/* Drag only the pill so the title and description stay selectable. */}
+              <div
+                onPointerDown={(event) => dragControls.start(event)}
+                // A slow pull must not hand the gesture to iOS's callout,
+                // which would leave the sheet frozen mid-drag.
+                className={cn(
+                  "flex cursor-grab touch-none items-center justify-center py-1 active:cursor-grabbing",
+                  TOUCH_GESTURE_CONTENT_CLASS,
+                )}
               >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
-            <div
-              onPointerDown={(e) => dragControls.start(e)}
-              className="flex cursor-grab touch-none flex-col items-center px-4 pb-2 pt-3 pr-14 active:cursor-grabbing"
-            >
-              <div className="h-1.5 w-10 rounded-full bg-muted-foreground/40" />
+                <div className="h-1.5 w-10 rounded-full bg-muted-foreground/40" />
+              </div>
               {title || description ? (
-                <div className="mt-3 w-full">
+                <div className="mt-2 w-full">
                   {title ? (
                     <h2
                       id={titleId}
@@ -336,9 +223,7 @@ export function BottomSheet({
               ) : null}
             </div>
             {/* overscroll-contain stops boundary scrolls from chaining to the page. */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6">
-              {children}
-            </div>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-6">{children}</div>
           </motion.div>
         </div>
       ) : null}

@@ -46,7 +46,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import { buildSafeTextSharePayload, type SharePayload } from '@/lib/share'
 import {
   Badge,

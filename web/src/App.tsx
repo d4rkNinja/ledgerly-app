@@ -19,7 +19,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import {
   MOTION_DISTANCE,
   TRANSITION_CONTENT,
-} from '@/lib/ease'
+} from '@/lib/app-motion'
 
 const AppShell = lazy(() =>
   import('@/app/app-shell').then((module) => ({ default: module.AppShell })),

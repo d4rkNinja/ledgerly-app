@@ -14,7 +14,7 @@ import { useApp } from '@/app/app-state'
 import { BrandLogo } from '@/components/brand-logo'
 import { Button, Field } from '@/components/ui'
 import { ApiError, api } from '@/lib/api-client'
-import { MOTION_DISTANCE, TRANSITION_CONTENT } from '@/lib/ease'
+import { MOTION_DISTANCE, TRANSITION_CONTENT } from '@/lib/app-motion'
 
 type InvitationMembership = {
   workspaceId: string

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MotionConfig } from 'motion/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -105,16 +105,18 @@ describe('Budget and goal date controls', () => {
 
     await user.click(start)
     await user.click(
-      within(startPicker as HTMLElement).getByRole('gridcell', {
+      screen.getAllByRole('gridcell', {
         name: calendarLabel(12),
-      }),
+        hidden: true,
+      })[0],
     )
     await user.click(end)
 
     expect(
-      within(endPicker as HTMLElement).getByRole('gridcell', {
+      screen.getAllByRole('gridcell', {
         name: calendarLabel(11),
-      }),
+        hidden: true,
+      }).at(-1)!,
     ).toBeDisabled()
   })
 

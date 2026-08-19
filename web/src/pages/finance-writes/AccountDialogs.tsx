@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { z } from 'zod'
 import { useApp } from '@/app/app-state'
-import { Checkbox } from '@/components/motion/checkbox'
+import { Checkbox } from '@/components/beui/checkbox'
 import { CurrencySelect } from '@/components/currency-select'
 import { Dialog, Field } from '@/components/ui'
 import type { Account, Money } from '@/domain/types'
@@ -19,7 +19,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import { api } from '@/lib/api-client'
 import {
   DemoWriteNotice,

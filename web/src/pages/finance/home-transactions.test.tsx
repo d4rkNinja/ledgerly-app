@@ -551,8 +551,13 @@ describe("TransactionDialog dates and accounts", () => {
     const transactionDate = screen.getByRole("button", {
       name: /transaction date/i,
     });
+    const transactionId = screen.getByRole("textbox", {
+      name: "Transaction ID",
+    });
 
     expect(transactionDate).toHaveTextContent(formatDateOnly(today));
+    expect(transactionId).toBeEnabled();
+    expect(transactionId).toHaveAttribute("placeholder", "Auto Generated");
     expect(
       document.querySelector('input[type="date"]'),
     ).not.toBeInTheDocument();
@@ -569,6 +574,7 @@ describe("TransactionDialog dates and accounts", () => {
           },
           "en-US",
         )}`,
+        hidden: true,
       })
     )[0];
     selectedDay.focus();
@@ -613,6 +619,7 @@ describe("TransactionDialog dates and accounts", () => {
           },
           "en-US",
         )}`,
+        hidden: true,
       })
     )[0];
     selectedDay.focus();
@@ -775,6 +782,10 @@ describe("TransactionDialog dates and accounts", () => {
 describe("TransactionsPage date filters", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
     apiMocks.get.mockImplementation((path: string) => {
       if (path.endsWith("/accounts")) {
         return Promise.resolve([
@@ -803,6 +814,8 @@ describe("TransactionsPage date filters", () => {
 
   afterEach(() => {
     cleanup();
+    delete (HTMLElement.prototype as { scrollIntoView?: () => void })
+      .scrollIntoView;
     vi.unstubAllGlobals();
   });
 
@@ -981,6 +994,119 @@ describe("TransactionsPage date filters", () => {
         queryKey: ["period-reviews", "workspace-home"],
       });
     });
+  });
+
+  it("returns to auto generation when a custom transaction ID is cleared", async () => {
+    const user = userEvent.setup();
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-general",
+            transactionType: "expense",
+            name: "General",
+            sortOrder: 0,
+            isActive: true,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "expense",
+            autoGenerate: true,
+            nextNumber: 1,
+            minimumDigits: 4,
+            preview: "0001",
+            minimumAvailableNextNumber: 1,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    apiMocks.post.mockResolvedValue({ id: "transaction-auto" });
+    renderLiveTransactionDialog();
+
+    const transactionId = screen.getByRole("textbox", {
+      name: "Transaction ID",
+    });
+    await user.type(transactionId, "000099");
+    await user.clear(transactionId);
+    await user.tab();
+
+    expect(transactionId).toHaveValue("");
+    expect(transactionId).toHaveAttribute("placeholder", "Auto Generated");
+
+    await user.type(
+      screen.getByRole("combobox", { name: "Name or description" }),
+      "Coffee beans",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "12.50");
+    const save = screen.getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+
+    await waitFor(() => {
+      expect(apiMocks.post).toHaveBeenCalledWith(
+        "/workspaces/workspace-home/transactions",
+        expect.objectContaining({
+          autoGenerateTransactionId: true,
+          transactionId: undefined,
+        }),
+        expect.objectContaining({ "Idempotency-Key": expect.any(String) }),
+      );
+    });
+  });
+
+  it("requires a custom ID when automatic sequence generation is disabled", async () => {
+    const user = userEvent.setup();
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-general",
+            transactionType: "expense",
+            name: "General",
+            sortOrder: 0,
+            isActive: true,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "expense",
+            autoGenerate: false,
+            nextNumber: 1,
+            minimumDigits: 4,
+            preview: "0001",
+            minimumAvailableNextNumber: 1,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    renderLiveTransactionDialog();
+
+    const transactionId = screen.getByRole("textbox", {
+      name: "Transaction ID",
+    });
+    await waitFor(() =>
+      expect(transactionId).toHaveAttribute("placeholder", "Enter custom ID"),
+    );
+    await user.type(
+      screen.getByRole("combobox", { name: "Name or description" }),
+      "Coffee beans",
+    );
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "12.50");
+    const save = screen.getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enter a custom transaction ID or enable automatic IDs in Settings.",
+    );
+    expect(apiMocks.post).not.toHaveBeenCalled();
   });
 
   it("combines exact ID, type, and amount filters and forwards them to export", async () => {

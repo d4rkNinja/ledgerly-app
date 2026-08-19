@@ -1,7 +1,8 @@
 "use client";
+// beui.dev/components/motion/checkbox
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useId, type Ref } from "react";
+import { useId } from "react";
 import { EASE_OUT, SPRING_PRESS } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 
@@ -16,11 +17,9 @@ export interface CheckboxProps {
   label?: string;
   className?: string;
   id?: string;
-  buttonRef?: Ref<HTMLButtonElement>;
   "aria-label"?: string;
+  /** Associates an external message (e.g. a form error) with the control. */
   "aria-describedby"?: string;
-  "aria-invalid"?: boolean;
-  "aria-required"?: boolean;
 }
 
 export function Checkbox({
@@ -31,11 +30,8 @@ export function Checkbox({
   label,
   className,
   id: idProp,
-  buttonRef,
   "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
-  "aria-required": ariaRequired,
 }: CheckboxProps) {
   const autoId = useId();
   const id = idProp ?? autoId;
@@ -53,18 +49,15 @@ export function Checkbox({
       )}
     >
       <motion.button
-        ref={buttonRef}
         id={id}
         type="button"
         role="checkbox"
         aria-checked={indeterminate ? "mixed" : checked}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
-        aria-invalid={ariaInvalid || undefined}
-        aria-required={ariaRequired || undefined}
         disabled={disabled}
         onClick={() => !disabled && onCheckedChange(!checked)}
-        whileTap={reduce || disabled ? undefined : { scale: 0.96 }}
+        whileTap={reduce || disabled ? undefined : { scale: 0.92 }}
         transition={SPRING_PRESS}
         data-state={
           checked ? "checked" : indeterminate ? "indeterminate" : "unchecked"

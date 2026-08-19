@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import type { Ref } from 'react'
 import { Link } from 'react-router'
 import { Dock, DockItem } from '@/components/motion/dock'
-import { SPRING_PRESS } from '@/lib/ease'
+import { SPRING_PRESS } from '@/lib/app-motion'
 import { selectionHaptic } from '@/platform/haptics'
 import {
   isMobileNavigationActive,
@@ -97,14 +97,16 @@ export function MobileNavigationDock({
                 <DockItem
                   key={item.id}
                   active={active}
-                  badge={itemUnreadCount}
-                  badgeLabel={
-                    itemUnreadCount > 0
-                      ? `${itemUnreadCount} unread notifications`
-                      : undefined
-                  }
-                  className={`dock-item${isQuickAdd ? ' dock-add' : ''}`}
+                  className={`dock-item${active ? ' is-active' : ''}${isQuickAdd ? ' dock-add' : ''}`}
                 >
+                  {itemUnreadCount > 0 ? (
+                    <span
+                      className="dock-unread-badge"
+                      aria-label={`${itemUnreadCount} unread notifications`}
+                    >
+                      {itemUnreadCount > 99 ? '99+' : itemUnreadCount}
+                    </span>
+                  ) : null}
                   {isQuickAdd ? (
                     <motion.button
                       ref={quickAddButtonRef}
