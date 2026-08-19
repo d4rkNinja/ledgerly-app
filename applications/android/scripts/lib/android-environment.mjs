@@ -23,6 +23,16 @@ const VITE_ENV_FILES = [
   '.env.local',
   '.env',
 ]
+const DEFAULT_ANDROID_DEBUG_API = 'http://10.0.2.2:8080/api/v1'
+
+function usableAndroidDebugApi(value) {
+  if (typeof value !== 'string' || value.trim() === '') return null
+  try {
+    return new URL(value).href
+  } catch {
+    return null
+  }
+}
 
 function parseViteApiBaseUrl(contents) {
   const match = String(contents).match(
@@ -49,20 +59,29 @@ export async function loadDebugApiEnvironment(
     typeof env.VITE_API_BASE_URL === 'string' &&
     env.VITE_API_BASE_URL.trim() !== ''
   ) {
-    return env
+    const explicitApiUrl = usableAndroidDebugApi(env.VITE_API_BASE_URL)
+    return explicitApiUrl
+      ? { ...env, VITE_API_BASE_URL: explicitApiUrl }
+      : { ...env, VITE_API_BASE_URL: DEFAULT_ANDROID_DEBUG_API }
   }
 
   for (const fileName of VITE_ENV_FILES) {
     try {
       const contents = await readFileImpl(path.join(rootDir, fileName), 'utf8')
       const apiUrl = parseViteApiBaseUrl(contents)
-      if (apiUrl) return { ...env, VITE_API_BASE_URL: apiUrl }
+      if (apiUrl) {
+        return {
+          ...env,
+          VITE_API_BASE_URL:
+            usableAndroidDebugApi(apiUrl) ?? DEFAULT_ANDROID_DEBUG_API,
+        }
+      }
     } catch (error) {
       if (error.code !== 'ENOENT') throw error
     }
   }
 
-  return env
+  return { ...env, VITE_API_BASE_URL: DEFAULT_ANDROID_DEBUG_API }
 }
 
 function numericTuple(value) {

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   LoaderCircle,
+  Landmark,
   ReceiptText,
   Search,
   WalletCards,
@@ -18,9 +19,9 @@ import {
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { api } from '@/lib/api-client'
-import { EASE_OUT } from '@/lib/ease'
+import { EASE_OUT } from '@/lib/app-motion'
 import { formatMoney } from '@/lib/format'
 import { isolateBodySiblings } from '@/lib/modal-isolation'
 import { registerBackLayer } from '@/platform/back-layer-stack'
@@ -35,6 +36,7 @@ type SearchRecord = Record<string, unknown>
 type WorkspaceSearchResponse = {
   transactions: SearchRecord[]
   accounts: SearchRecord[]
+  vaults: SearchRecord[]
 }
 
 type SearchOption = {
@@ -77,6 +79,7 @@ type WorkspaceSearchProps = {
 const emptySearchResponse = (): WorkspaceSearchResponse => ({
   transactions: [],
   accounts: [],
+  vaults: [],
 })
 
 function recordArray(value: unknown): SearchRecord[] {
@@ -96,6 +99,7 @@ function normalizeSearchResponse(value: unknown): WorkspaceSearchResponse {
   return {
     transactions: recordArray(result.transactions),
     accounts: recordArray(result.accounts),
+    vaults: recordArray(result.vaults),
   }
 }
 
@@ -210,6 +214,22 @@ function accountOption(
     description: `${friendlyLabel(item.type, 'Account')} · ${status}`,
     ...(showBalance ? { trailing: moneyLabel(item, concealed) } : {}),
     icon: WalletCards,
+    onSelect: () => onNavigate('/app/accounts'),
+  }
+}
+
+function vaultOption(
+  item: SearchRecord,
+  index: number,
+  concealed: boolean,
+  onNavigate: (to: string) => void,
+): SearchOption {
+  return {
+    id: `vault-${stringValue(item.id) || index}`,
+    label: stringValue(item.name) || 'Vault',
+    description: `${friendlyLabel(item.type, 'Vault')} · ${stringValue(item.currency) || 'Currency unavailable'}`,
+    trailing: moneyLabel(item, concealed),
+    icon: Landmark,
     onSelect: () => onNavigate('/app/accounts'),
   }
 }
@@ -378,7 +398,7 @@ export function WorkspaceSearch({
       : emptySearchResponse()
   const resultCount =
     response.transactions.length +
-    (canViewBalances ? response.accounts.length : 0)
+    (canViewBalances ? response.accounts.length + response.vaults.length : 0)
 
   const workspaceGroups = useMemo<SearchGroup[]>(() => {
     if (!currentDebouncedQuery || !searchQuery.data) return []
@@ -391,6 +411,12 @@ export function WorkspaceSearch({
       },
       ...(canViewBalances
         ? [
+            {
+              label: 'Vaults',
+              options: searchQuery.data.vaults.map((item, index) =>
+                vaultOption(item, index, concealAmounts, onNavigate),
+              ),
+            },
             {
               label: 'Accounts',
               options: searchQuery.data.accounts.map((item, index) =>
@@ -541,7 +567,7 @@ export function WorkspaceSearch({
           value={query}
           onChange={(event) => updateQuery(event.target.value)}
           maxLength={SEARCH_MAX_CHARACTERS}
-          placeholder="Search transactions, accounts, or pages"
+          placeholder="Search transactions, vaults, accounts, or pages"
           aria-label="Search workspace and pages"
           role="combobox"
           aria-expanded={open}
@@ -678,7 +704,7 @@ export function WorkspaceSearch({
             </strong>
             <span>
               {workspaceSearchAvailable
-                ? 'Try a merchant, category, account, or page name.'
+                ? 'Try a merchant, category, vault, account, or page name.'
                 : 'Try a different page name.'}
             </span>
           </div>

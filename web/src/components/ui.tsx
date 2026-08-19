@@ -31,7 +31,7 @@ import {
   Button as BeUIButton,
   type ButtonProps as BeUIButtonProps,
 } from '@/components/motion/button/base'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { isolateBodySiblings } from '@/lib/modal-isolation'
 import { registerBackLayer } from '@/platform/back-layer-stack'
 import {
@@ -41,7 +41,7 @@ import {
   TRANSITION_CONTENT,
   TRANSITION_FADE,
   TRANSITION_PANEL,
-} from '@/lib/ease'
+} from '@/lib/app-motion'
 import { useMediaQuery } from '@/lib/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
@@ -129,6 +129,31 @@ function enhanceFieldControl(
   let controlId: string | undefined
 
   const enhanceNode = (candidate: ReactNode): ReactNode => {
+    if (
+      isValidElement<FieldControlAria>(candidate) &&
+      candidate.props['data-field-control'] !== undefined &&
+      typeof candidate.type !== 'string'
+    ) {
+      controlId = candidate.props.id?.trim()
+        ? candidate.props.id
+        : generatedControlId
+      return cloneElement(candidate, {
+        id: controlId,
+        'aria-invalid': error ? true : candidate.props['aria-invalid'],
+        'aria-labelledby':
+          [candidate.props['aria-labelledby'], labelId]
+            .filter(Boolean)
+            .join(' ') || undefined,
+        'aria-describedby':
+          [
+            candidate.props['aria-describedby'],
+            error || hint ? messageId : undefined,
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
+      })
+    }
+
     if (!isFieldControlElement(candidate)) {
       return candidate
     }

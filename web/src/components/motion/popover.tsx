@@ -24,6 +24,14 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
+import { usePopoverPortalPosition } from "@/components/motion/popover-position";
+import { useDismiss } from "@/lib/hooks/use-dismiss";
+import {
+  type HoverGesture,
+  useHoverGesture,
+} from "@/lib/hooks/use-hover-gesture";
+import { useTapGesture } from "@/lib/hooks/use-tap-gesture";
 import { cn } from "@/lib/utils";
 
 type Side = "top" | "bottom";
@@ -44,6 +52,26 @@ const GOO_CLOSE_SPRING = {
 } as const;
 const HOVER_CLOSE_DELAY = 120;
 const CIRCLE_KAPPA = 0.5523;
+
+// `onPointerEnter`/`onPointerLeave` rather than the mouse pair: a tap fires
+// compatibility mouseenter/mouseleave that carry no pointerType at all, and
+// they are what made the panel flicker open and shut under a finger. The
+// gesture pairs the two, so the panel a pen tap opened is not closed again by
+// the boundary event that ends the same tap.
+function makeHoverHandlers(
+  hover: HoverGesture,
+  enter: () => void,
+  leave: () => void,
+) {
+  return {
+    onPointerEnter: (event: React.PointerEvent) => {
+      if (hover.enter(event)) enter();
+    },
+    onPointerLeave: (event: React.PointerEvent) => {
+      if (hover.leave(event)) leave();
+    },
+  };
+}
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -145,6 +173,37 @@ function clipForProgress(geo: Geo, progress: number, supportsShape: boolean) {
     : insetFor(rect, geo.layerW, geo.layerH);
 }
 
+function roundedRectPath(rect: Rect) {
+  const radius = Math.max(0, Math.min(rect.r, rect.w / 2, rect.h / 2));
+  const n = (value: number) => value.toFixed(3);
+  const x1 = rect.x;
+  const y1 = rect.y;
+  const x2 = rect.x + rect.w;
+  const y2 = rect.y + rect.h;
+  const arc = `A${n(radius)} ${n(radius)} 0 0 1`;
+
+  // A zero radius makes every arc degenerate to a line, so this also draws
+  // plain rectangles.
+  return (
+    `M${n(x1 + radius)} ${n(y1)}` +
+    `H${n(x2 - radius)}${arc} ${n(x2)} ${n(y1 + radius)}` +
+    `V${n(y2 - radius)}${arc} ${n(x2 - radius)} ${n(y2)}` +
+    `H${n(x1 + radius)}${arc} ${n(x1)} ${n(y2 - radius)}` +
+    `V${n(y1 + radius)}${arc} ${n(x1 + radius)} ${n(y1)}Z`
+  );
+}
+
+// The goo layer is portalled above the page, so its copy of the trigger pill
+// would cover the real trigger's label and focus ring. Punching the trigger
+// back out keeps the real one visible and clips the blur to the layer box.
+// This is a clip path rather than a CSS mask on purpose: WebKit silently
+// ignores `mask: url(#id)` pointing at an SVG <mask> element, which left the
+// label hidden behind the goo in Safari.
+function triggerCutout(geo: Geo) {
+  const layer = { x: 0, y: 0, w: geo.layerW, h: geo.layerH, r: 0 };
+  return `path(evenodd, "${roundedRectPath(layer)} ${roundedRectPath(geo.trigger)}")`;
+}
+
 interface PopoverContextValue {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -162,6 +221,7 @@ interface PopoverContextValue {
   contentId: string;
   progress: MotionValue<number>;
   triggerRef: React.MutableRefObject<HTMLElement | null>;
+  contentRef: React.MutableRefObject<HTMLDivElement | null>;
 }
 
 const PopoverContext = createContext<PopoverContextValue | null>(null);
@@ -212,7 +272,9 @@ export function Popover({
   const contentId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rootHover = useHoverGesture();
   const progress = useMotionValue(defaultOpen ? 1 : 0);
 
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -261,21 +323,28 @@ export function Popover({
     return () => animation.stop();
   }, [open, progress, reduce]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    // Trigger and panel share rootRef, so moving between them isn't "outside".
-    const onPointer = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    if (trigger === "click") window.addEventListener("pointerdown", onPointer);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointerdown", onPointer);
-    };
-  }, [open, setOpen, trigger]);
+  // The panel is a `role="dialog"` and goes inert the moment it closes, so
+  // focus cannot be left sitting inside it: Escape hands it back to the
+  // trigger, the way the ARIA dialog pattern asks. A pointer dismissal takes
+  // the focus onward itself when it lands on something focusable — this only
+  // catches the case where it would otherwise be stranded.
+  const close = useCallback(() => {
+    setOpen(false);
+    const focused = document.activeElement;
+    const inPanel =
+      focused instanceof HTMLElement && contentRef.current?.contains(focused);
+    if (inPanel) triggerRef.current?.focus();
+  }, [setOpen]);
+  // The panel is portalled, so both trees participate in outside detection.
+  const ignoreContent = useCallback(
+    (target: Element) => Boolean(contentRef.current?.contains(target)),
+    [],
+  );
+  // A hover trigger opens on tap as well now, so it needs the same outside
+  // dismissal the click trigger always had. The gesture passes through to
+  // whatever it landed on, which is the light-dismiss bargain the platform's
+  // own popovers strike.
+  useDismiss(open, close, rootRef, { ignore: ignoreContent });
 
   const ctx = useMemo<PopoverContextValue>(
     () => ({
@@ -295,6 +364,7 @@ export function Popover({
       contentId,
       progress,
       triggerRef,
+      contentRef,
     }),
     [
       open,
@@ -317,7 +387,7 @@ export function Popover({
 
   const hoverHandlers =
     trigger === "hover"
-      ? { onMouseEnter: openHover, onMouseLeave: scheduleClose }
+      ? makeHoverHandlers(rootHover, openHover, scheduleClose)
       : {};
 
   return (
@@ -350,6 +420,9 @@ export interface PopoverTriggerProps {
 
 export function PopoverTrigger({ children }: PopoverTriggerProps) {
   const ctx = usePopoverContext("PopoverTrigger");
+  // What the last gesture on the trigger was, and whether the panel was
+  // already open when it started. A click reports neither.
+  const tap = useTapGesture<boolean>();
 
   if (!isValidElement(children)) return children;
 
@@ -358,17 +431,51 @@ export function PopoverTrigger({ children }: PopoverTriggerProps) {
   const childRef = (childProps as { ref?: Ref<HTMLElement> }).ref;
 
   const compose =
-    (name: string, handler: () => void) =>
-    (event: { defaultPrevented?: boolean }) => {
+    <E extends { defaultPrevented?: boolean }>(
+      name: string,
+      handler: (event: E) => void,
+    ) =>
+    (event: E) => {
       (childProps[name] as ((e: unknown) => void) | undefined)?.(event);
-      if (!event.defaultPrevented) handler();
+      if (!event.defaultPrevented) handler(event);
     };
 
+  // Observation, not action. `compose` steps aside for a child that handled
+  // the event itself, which is right for anything that *does* something — but
+  // a child preventing the pointerdown default (to hold focus, say) has not
+  // said the gesture didn't happen. Skipping the record there left the panel
+  // reading whatever the gesture before it had put in.
+  const observe =
+    <E,>(name: string, handler: (event: E) => void) =>
+    (event: E) => {
+      (childProps[name] as ((e: unknown) => void) | undefined)?.(event);
+      handler(event);
+    };
+
+  // The hover trigger keeps its hover path and *adds* a tap one, rather than
+  // swapping mode on a device that reports a touchscreen: a touchscreen laptop
+  // has both inputs and the mouse must keep working. A hovering pointer has
+  // already opened the panel on its way in, and a keyboard press arrives with
+  // no pointerdown behind it, so only a tap toggles here. Which panel state
+  // the tap acts on is read from the gesture's start, because a browser that
+  // focuses the trigger on contact would otherwise open it mid-gesture and let
+  // the click close it again.
   const handlers: Record<string, unknown> =
     ctx.triggerMode === "hover"
       ? {
           onFocus: compose("onFocus", ctx.openHover),
           onBlur: compose("onBlur", ctx.scheduleClose),
+          onPointerDown: observe<React.PointerEvent>(
+            "onPointerDown",
+            (event) => tap.start(event, ctx.open),
+          ),
+          onPointerCancel: observe("onPointerCancel", tap.drop),
+          onKeyDown: observe("onKeyDown", tap.drop),
+          onClick: compose("onClick", () => {
+            const gesture = tap.take();
+            if (!gesture || gesture.pointerType === "mouse") return;
+            ctx.setOpen(!gesture.state);
+          }),
         }
       : { onClick: compose("onClick", ctx.toggle) };
 
@@ -395,19 +502,11 @@ const ALIGN_ORIGIN: Record<Align, string> = {
 export interface PopoverContentProps {
   children: ReactNode;
   className?: string;
-  /** Accessible name for the dialog surface. */
-  ariaLabel?: string;
-  /** Optional description announced with the dialog. */
-  ariaDescribedBy?: string;
 }
 
-export function PopoverContent({
-  children,
-  className,
-  ariaLabel,
-  ariaDescribedBy,
-}: PopoverContentProps) {
+export function PopoverContent({ children, className }: PopoverContentProps) {
   const ctx = usePopoverContext("PopoverContent");
+  const [portalReady, setPortalReady] = useState(false);
   const {
     side,
     align,
@@ -419,57 +518,40 @@ export function PopoverContent({
     contentId,
     progress,
     triggerRef,
+    contentRef,
     open,
     triggerMode,
     openHover,
     scheduleClose,
   } = ctx;
 
-  const measureRef = useRef<HTMLDivElement>(null);
+  const measureRef = contentRef;
+  const panelHover = useHoverGesture();
   const blobRef = useRef<HTMLDivElement>(null);
   const clipRef = useRef<HTMLDivElement>(null);
   const geoRef = useRef<Geo | null>(null);
   const supportsShapeRef = useRef(false);
+  const layout = usePopoverPortalPosition(
+    triggerRef,
+    measureRef,
+    portalReady,
+  );
 
-  const [sizes, setSizes] = useState({ tW: 0, tH: 0, cW: 0, cH: 0 });
-
-  useLayoutEffect(() => {
-    const triggerNode = triggerRef.current;
-    const contentNode = measureRef.current;
-    if (!contentNode) return;
-
-    const measure = () => {
-      const tW = triggerNode?.offsetWidth ?? 0;
-      const tH = triggerNode?.offsetHeight ?? 0;
-      const cW = contentNode.offsetWidth;
-      const cH = contentNode.offsetHeight;
-      setSizes((prev) =>
-        prev.tW === tW && prev.tH === tH && prev.cW === cW && prev.cH === cH
-          ? prev
-          : { tW, tH, cW, cH },
-      );
-    };
-    measure();
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(contentNode);
-    if (triggerNode) observer.observe(triggerNode);
-    return () => observer.disconnect();
-  }, [triggerRef]);
+  useEffect(() => setPortalReady(true), []);
 
   const geo = useMemo(
     () =>
       buildGeo(
-        sizes.tW,
-        sizes.tH,
-        sizes.cW,
-        sizes.cH,
+        layout?.trigger.width ?? 0,
+        layout?.trigger.height ?? 0,
+        layout?.content.width ?? 0,
+        layout?.content.height ?? 0,
         side,
         align,
         gap,
         panelRadius,
       ),
-    [sizes, side, align, gap, panelRadius],
+    [layout, side, align, gap, panelRadius],
   );
 
   // Morph the same clip on the goo body and the content, so the whole popover
@@ -497,20 +579,26 @@ export function PopoverContent({
 
   const hoverHandlers =
     triggerMode === "hover"
-      ? { onMouseEnter: openHover, onMouseLeave: scheduleClose }
+      ? makeHoverHandlers(panelHover, openHover, scheduleClose)
       : {};
 
-  return (
-    <>
+  // Match the server and first client render, then attach the portal after
+  // hydration. This preserves SSR without regenerating the page on the client.
+  if (!portalReady) return null;
+
+  return createPortal(
+    <div
+      data-popover-portal=""
+      className="pointer-events-none fixed left-0 top-0 z-[9999] isolate size-0"
+      style={{
+        visibility: layout ? "visible" : "hidden",
+        transform: `translate3d(${layout?.trigger.left ?? 0}px, ${layout?.trigger.top ?? 0}px, 0)`,
+      }}
+    >
       {/* Goo filter: blur, sharpen the alpha back into solid shapes, then lay
           the crisp original on top so blobs merge with liquid edges. */}
-      <svg
-        aria-hidden
-        width="0"
-        height="0"
-        className="pointer-events-none absolute"
-      >
-        <title>Popover goo filter</title>
+      <svg aria-hidden width="0" height="0" className="absolute">
+        <title>Popover visual effects</title>
         <defs>
           <filter id={gooId} x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur
@@ -529,7 +617,7 @@ export function PopoverContent({
         </defs>
       </svg>
 
-      {/* Goo body: static trigger pill + morphing blob, behind the trigger. */}
+      {/* Goo body: static trigger pill + morphing blob. */}
       <div
         aria-hidden
         className="pointer-events-none absolute z-[-1]"
@@ -539,6 +627,7 @@ export function PopoverContent({
           width: geo.layerW,
           height: geo.layerH,
           filter: reduce ? undefined : `url(#${gooId})`,
+          clipPath: triggerCutout(geo),
         }}
       >
         <div
@@ -560,8 +649,8 @@ export function PopoverContent({
         />
       </div>
 
-      {/* Content, clipped by the same morph. pointer-events-none so it never
-          shadows the trigger; the open panel re-enables its own. */}
+      {/* Content is clipped by the same morph. The portal wrapper stays
+          pointer-transparent; only the fully open panel accepts interaction. */}
       <div
         className="pointer-events-none absolute z-10"
         style={{
@@ -582,11 +671,9 @@ export function PopoverContent({
         >
           <div
             ref={measureRef}
-      id={contentId}
-      role="dialog"
-      aria-label={ariaLabel}
-      aria-describedby={ariaDescribedBy}
-      {...hoverHandlers}
+            id={contentId}
+            role="dialog"
+            {...hoverHandlers}
             style={{
               position: "absolute",
               left: geo.panel.x,
@@ -602,6 +689,7 @@ export function PopoverContent({
           </div>
         </div>
       </div>
-    </>
+    </div>,
+    document.body,
   );
 }

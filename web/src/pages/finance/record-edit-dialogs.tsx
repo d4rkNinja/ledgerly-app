@@ -3,14 +3,14 @@ import { Check, Copy } from 'lucide-react'
 import { useApp } from '@/app/app-state'
 import { CurrencySelect } from '@/components/currency-select'
 import { DatePicker } from '@/components/date-picker'
-import { Checkbox } from '@/components/motion/checkbox'
+import { Checkbox } from '@/components/beui/checkbox'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import { Button, Dialog, Field } from '@/components/ui'
 import type { Budget, Goal, Transaction } from '@/domain/types'
 import {

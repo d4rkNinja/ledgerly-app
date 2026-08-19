@@ -14,7 +14,7 @@ import { CurrencySelect } from '@/components/currency-select'
 import { Badge, Button, ListRow, Section } from '@/components/ui'
 import type { CurrentUser } from '@/domain/types'
 import { api, ApiError } from '@/lib/api-client'
-import { EASE_OUT } from '@/lib/ease'
+import { EASE_OUT } from '@/lib/app-motion'
 import { SettingToggle } from './SettingToggle'
 
 const THEME_OPTIONS = [

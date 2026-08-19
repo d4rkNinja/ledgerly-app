@@ -10,7 +10,9 @@ import type {
   ApiErrorShape,
 } from '@/domain/types'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'http://80.225.194.189:3001/api/v1'
+const API_BASE_URL = (
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || '/api/v1'
+).replace(/\/$/, '')
 const AUTHORIZED_DEPLOYED_HTTP_API = 'http://80.225.194.189:3001/api/v1'
 const AUTHORIZED_DEPLOYED_HTTPS_API = 'https://80.225.194.189:3001/api/v1'
 let bearerToken = ''

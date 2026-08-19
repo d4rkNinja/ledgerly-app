@@ -49,7 +49,6 @@ export function Parallax({
     offset: ["start end", "end start"],
     // Run after paint so a container ref defined higher in the tree is hydrated;
     // otherwise framer falls back to the document and only the page scroll works.
-    layoutEffect: false,
   });
 
   // progress 0→1 as the element crosses the viewport; map to a symmetric drift.

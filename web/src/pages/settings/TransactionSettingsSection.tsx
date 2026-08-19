@@ -36,7 +36,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import { Badge, Button, Dialog, Field, Section } from '@/components/ui'
 import { SettingToggle } from './SettingToggle'
 
@@ -706,12 +706,19 @@ function CategoriesEditor({ mode }: { mode: TransactionCategoryMode }) {
 }
 
 export function TransactionSettingsSection() {
-  const [area, setArea] = useState<'sequence' | 'categories'>('sequence')
+  const searchParams = new URLSearchParams(window.location.search)
+  const requestedArea =
+    searchParams.get('transactionSettings') === 'categories'
+      ? 'categories'
+      : 'sequence'
+  const [area, setArea] = useState<'sequence' | 'categories'>(requestedArea)
   const [mode, setMode] = useState<TransactionCategoryMode>('expense')
   const sequenceQuery = useTransactionSequences(area === 'sequence')
   const setting = sequenceQuery.data?.find(
     (candidate) => candidate.transactionType === mode,
   )
+
+  useEffect(() => setArea(requestedArea), [requestedArea])
 
   return (
     <Section id="settings-5" aria-labelledby="settings-5-title">

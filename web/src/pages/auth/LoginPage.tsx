@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { useApp } from '@/app/app-state'
 import { Button, Field } from '@/components/ui'
-import { Checkbox } from '@/components/motion/checkbox'
+import { Checkbox } from '@/components/beui/checkbox'
 import { ApiError, api } from '@/lib/api-client'
 import {
   AnimatedFormAlert,

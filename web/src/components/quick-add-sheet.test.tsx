@@ -4,7 +4,7 @@ import { QuickAddSheet } from './quick-add-sheet'
 
 const hapticMocks = vi.hoisted(() => ({ selectionHaptic: vi.fn() }))
 vi.mock('@/platform/haptics', () => hapticMocks)
-vi.mock('@/components/motion/bottom-sheet', () => ({
+vi.mock('@/components/beui/bottom-sheet', () => ({
   BottomSheet: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
 }))

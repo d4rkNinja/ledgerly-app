@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import { CURRENCY_OPTIONS } from '@/domain/currencies'
 import type { Workspace, WorkspaceType } from '@/domain/types'
 import { ApiError, api } from '@/lib/api-client'

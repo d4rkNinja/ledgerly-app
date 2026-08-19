@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef } from 'react'
 import { BrandLogo } from '@/components/brand-logo'
 import type { Workspace } from '@/domain/types'
-import { EASE_OUT } from '@/lib/ease'
+import { EASE_OUT } from '@/lib/app-motion'
 import { initials } from '@/lib/format'
 import { registerBackLayer } from '@/platform/back-layer-stack'
 

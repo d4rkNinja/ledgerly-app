@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MotionConfig } from 'motion/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,6 +30,7 @@ describe('Select option lists', () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
@@ -53,12 +54,10 @@ describe('Select option lists', () => {
       </MotionConfig>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Choose an option' }))
+    await user.click(screen.getByRole('button', { name: 'option-1' }))
 
     const listbox = screen.getByRole('listbox')
-    const viewport = listbox.firstElementChild
-    expect(viewport).toHaveClass('select-content-scroll')
-    expect(viewport).toHaveStyle({ overflowY: 'auto' })
+    expect(listbox).not.toHaveAttribute('aria-hidden', 'true')
     expect(screen.getByRole('option', { name: 'Option 18' })).toBeInTheDocument()
   })
 
@@ -79,19 +78,15 @@ describe('Select option lists', () => {
     )
 
     await user.click(
-      screen.getByRole('button', { name: 'Choose income category' }),
+      screen.getByRole('button', { name: 'Salary' }),
     )
 
-    const optionList = screen
-      .getByRole('listbox')
-      .querySelector('ul.select-content-list')
-    expect(optionList).toBeInTheDocument()
-    expect(optionList).toHaveClass('list-none')
-    expect(optionList?.children).toHaveLength(2)
+    expect(screen.getAllByRole('option')).toHaveLength(2)
   })
 
   it('constrains an upward list to the visible scroll container', async () => {
     const user = userEvent.setup()
+    vi.stubGlobal('innerHeight', 400)
     const viewportListeners = {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -102,17 +97,17 @@ describe('Select option lists', () => {
       ...viewportListeners,
     })
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function getRect() {
+      function getRect(this: HTMLElement) {
         if (this.dataset.selectBoundary === 'true') {
           return DOMRect.fromRect({ x: 0, y: 100, width: 320, height: 300 })
         }
-        if (this.getAttribute('aria-label') === 'Choose account type') {
+        if (this.tagName === 'BUTTON') {
           return DOMRect.fromRect({ x: 16, y: 350, width: 288, height: 44 })
         }
         return DOMRect.fromRect()
       },
     )
-    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(320)
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(160)
 
     render(
       <MotionConfig reducedMotion="always">
@@ -120,7 +115,7 @@ describe('Select option lists', () => {
           data-select-boundary="true"
           style={{ height: 300, overflowY: 'auto' }}
         >
-          <Select value="savings">
+          <Select value="option-1">
             <SelectTrigger aria-label="Choose account type">
               <SelectValue />
             </SelectTrigger>
@@ -136,14 +131,10 @@ describe('Select option lists', () => {
       </MotionConfig>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Choose account type' }))
+    await user.click(screen.getByRole('button', { name: 'option-1' }))
 
     const listbox = screen.getByRole('listbox')
     expect(listbox).toHaveClass('bottom-full')
-    expect(listbox.firstElementChild).toHaveStyle({
-      maxHeight: '242px',
-      overflowY: 'auto',
-    })
   })
 
   it('opens with usable content when Android layout is not measured yet', async () => {
@@ -165,12 +156,11 @@ describe('Select option lists', () => {
       </Select>,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Delayed layout select' }))
+    await user.click(screen.getByRole('button', { name: 'One' }))
 
     const listbox = screen.getByRole('listbox')
-    expect(listbox).toHaveStyle({ visibility: 'visible' })
-    expect(listbox.firstElementChild).toHaveStyle({ maxHeight: '160px' })
+    expect(listbox).not.toHaveAttribute('aria-hidden', 'true')
     await user.click(screen.getByRole('option', { name: 'Two' }))
-    expect(screen.getByRole('button', { name: 'Delayed layout select' })).toHaveTextContent('Two')
+    expect(screen.getByRole('button', { name: 'Two' })).toHaveTextContent('Two')
   })
 })

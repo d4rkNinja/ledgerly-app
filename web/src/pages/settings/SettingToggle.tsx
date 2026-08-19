@@ -37,8 +37,7 @@ export function SettingToggle({
         checked={checked}
         onCheckedChange={onChange}
         disabled={disabled}
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
+        ariaLabel={title}
       />
     </div>
   )

@@ -167,6 +167,21 @@ test('an explicit debug API environment remains higher priority than project env
   )
 })
 
+test('debug Android builds replace a relative web API URL with the emulator host', async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'ledgerly-android-vite-env-'))
+  t.after(() => rm(root, { force: true, recursive: true }))
+  await writeFile(path.join(root, '.env'), 'VITE_API_BASE_URL=/api/v1\n')
+
+  const resolved = await loadDebugApiEnvironment(root, {
+    NODE_ENV: 'development',
+  })
+
+  assert.equal(
+    resolved.VITE_API_BASE_URL,
+    'http://10.0.2.2:8080/api/v1',
+  )
+})
+
 test('host inspection reports a missing Android SDK environment variable', async (t) => {
   const fixture = await createHostFixture(t)
   delete fixture.options.env.ANDROID_HOME

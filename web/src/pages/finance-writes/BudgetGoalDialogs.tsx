@@ -5,7 +5,7 @@ import { useApp } from '@/app/app-state'
 import { ContactNamePicker } from '@/components/contact-name-picker'
 import { CurrencySelect } from '@/components/currency-select'
 import { DatePicker } from '@/components/date-picker'
-import { Checkbox } from '@/components/motion/checkbox'
+import { Checkbox } from '@/components/beui/checkbox'
 import { Button, Dialog, Field } from '@/components/ui'
 import {
   Select,
@@ -13,7 +13,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import type { Account, Budget, Contact, Goal } from '@/domain/types'
 import { api } from '@/lib/api-client'
 import {

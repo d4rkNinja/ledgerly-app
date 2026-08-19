@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MotionConfig } from 'motion/react'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { BottomSheet } from './bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 
 function SwitchingSheets() {
   const [accountOpen, setAccountOpen] = useState(true)
@@ -35,6 +43,21 @@ function SwitchingSheets() {
   )
 }
 
+function FocusSheet() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)}>
+        Open focus sheet
+      </button>
+      <BottomSheet open={open} onOpenChange={setOpen} title="Focus sheet">
+        <button type="button">First action</button>
+        <button type="button">Last action</button>
+      </BottomSheet>
+    </>
+  )
+}
+
 describe('BottomSheet scroll locking', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -60,6 +83,7 @@ describe('BottomSheet scroll locking', () => {
   })
 
   afterEach(() => {
+    cleanup()
     document.body.style.position = ''
     document.body.style.top = ''
     document.body.style.left = ''
@@ -67,6 +91,30 @@ describe('BottomSheet scroll locking', () => {
     document.body.style.overflow = ''
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('isolates background content, traps focus, and restores the opener', async () => {
+    const user = userEvent.setup()
+    render(<FocusSheet />)
+    const opener = screen.getByRole('button', { name: 'Open focus sheet' })
+    await user.click(opener)
+
+    const sheet = await screen.findByRole('dialog', { name: 'Focus sheet' })
+    const close = within(sheet).getByRole('button', {
+      name: 'Close bottom sheet',
+    })
+    const first = within(sheet).getByRole('button', { name: 'First action' })
+    const last = within(sheet).getByRole('button', { name: 'Last action' })
+    await waitFor(() => expect(first).toHaveFocus())
+    expect((opener.closest('body > div') as HTMLElement).inert).toBe(true)
+
+    last.focus()
+    await user.tab()
+    expect(close).toHaveFocus()
+
+    await user.click(close)
+    await waitFor(() => expect(opener).toHaveFocus())
+    expect((opener.closest('body > div') as HTMLElement).inert).not.toBe(true)
   })
 
   it('restores page scrolling after handing off from one sheet to another', async () => {

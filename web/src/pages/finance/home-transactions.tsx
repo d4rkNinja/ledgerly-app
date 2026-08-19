@@ -33,10 +33,9 @@ import {
   useSearchParams,
 } from 'react-router'
 import { z } from 'zod'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { DatePicker } from '@/components/date-picker'
 import { ContactNamePicker } from '@/components/contact-name-picker'
-import { Checkbox } from '@/components/motion/checkbox'
 import {
   addDateOnlyDays,
   addDateOnlyMonths,
@@ -85,7 +84,7 @@ import type {
 } from '@/domain/types'
 
 import { api, ApiError } from '@/lib/api-client'
-import { SPRING_PRESS } from '@/lib/ease'
+import { SPRING_PRESS } from '@/lib/app-motion'
 import { downloadWorkspaceExport } from '@/lib/export'
 import { formatDate, formatMoney } from '@/lib/format'
 import { invalidatePeriodReviewQueries } from '@/lib/period-review-query'
@@ -101,7 +100,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/motion/select'
+} from '@/components/beui/select'
 import {
   Badge,
   Button,
@@ -1838,9 +1837,8 @@ const transactionSchema = z.object({
   occurredAt: dateInputSchema,
   note: z.string().max(240, 'Keep the note under 240 characters').optional(),
 	description: z.string().max(2000, 'Keep the description under 2000 characters').optional(),
-	contactId: z.string().optional(),
+  contactId: z.string().optional(),
   transactionId: z.string().trim().max(18, 'Keep the transaction ID under 19 digits'),
-  autoGenerateTransactionId: z.boolean(),
 })
 
 function selectedTransactionDateToUtc(value: string) {
@@ -1890,9 +1888,8 @@ export function TransactionDialog({
     occurredAt: todayDateOnly(),
     note: '',
 		description: '',
-		contactId: '',
+    contactId: '',
     transactionId: '',
-    autoGenerateTransactionId: true,
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [feedback, setFeedback] = useState<Feedback | null>(null)
@@ -1920,9 +1917,8 @@ export function TransactionDialog({
         occurredAt: todayDateOnly(),
         note: '',
 		description: '',
-		contactId: '',
+        contactId: '',
         transactionId: '',
-        autoGenerateTransactionId: true,
       })
       setErrors({})
       setFeedback(null)
@@ -1986,6 +1982,7 @@ export function TransactionDialog({
   const modeSequence = sequencesQuery.data?.find(
     (setting) => setting.transactionType === mode,
   )
+  const autoGenerationEnabled = demoMode || modeSequence?.autoGenerate !== false
   const activeSplitMembers = useMemo(() => {
     const seen = new Set<string>()
     return (Array.isArray(membersQuery.data) ? membersQuery.data : []).filter(
@@ -2007,15 +2004,6 @@ export function TransactionDialog({
     )
   }, [categoryNames, categoriesQuery.isLoading, mode, open])
 
-  useEffect(() => {
-    if (!open || !modeSequence) return
-    setValues((current) => ({
-      ...current,
-      autoGenerateTransactionId: modeSequence.autoGenerate,
-      transactionId: '',
-    }))
-  }, [mode, modeSequence, open])
-
   const changeMode = (nextMode: AddMode) => {
     setMode(nextMode)
     setValues((current) => ({
@@ -2024,10 +2012,6 @@ export function TransactionDialog({
         ? categoriesForTransactionMode(nextMode)[0] ?? ''
         : '',
       transactionId: '',
-      autoGenerateTransactionId:
-        sequencesQuery.data?.find(
-          (setting) => setting.transactionType === nextMode,
-        )?.autoGenerate ?? true,
     }))
     setErrors({})
     setFeedback(null)
@@ -2076,10 +2060,9 @@ export function TransactionDialog({
           notes: body.note.trim() || undefined,
 		  description: body.description.trim() || undefined,
           contactId: body.contactId || undefined,
-          autoGenerateTransactionId: body.autoGenerateTransactionId,
-          transactionId: body.autoGenerateTransactionId
-            ? undefined
-            : body.transactionId.trim(),
+          autoGenerateTransactionId:
+            autoGenerationEnabled && body.transactionId.trim() === '',
+          transactionId: body.transactionId.trim() || undefined,
           type: transactionType,
           splits: transactionType === 'split' ? splits : undefined,
           occurredAt: selectedTransactionDateToUtc(body.occurredAt),
@@ -2149,8 +2132,16 @@ export function TransactionDialog({
     setFeedback(null)
     setSplitShareErrors({})
     setSplitShareError('')
+    if (!autoGenerationEnabled && values.transactionId.trim() === '') {
+      setErrors({
+        transactionId:
+          'Enter a custom transaction ID or enable automatic IDs in Settings.',
+      })
+      focusFirstInvalidField(form)
+      return
+    }
     if (
-      !values.autoGenerateTransactionId &&
+      values.transactionId.trim() !== '' &&
       !/^\d{1,18}$/.test(values.transactionId.trim())
     ) {
       setErrors({
@@ -2247,7 +2238,7 @@ export function TransactionDialog({
     if (demoMode) {
       onDemoAdded({
         id: `demo-${Date.now()}`,
-        transactionId: values.autoGenerateTransactionId
+        transactionId: values.transactionId.trim() === ''
           ? modeSequence?.preview ??
             transactionSequencePreview(
               modeSequence?.nextNumber ?? 1,
@@ -2383,31 +2374,25 @@ export function TransactionDialog({
             Activate an account before recording a transaction.
           </InfoNotice>
         ) : null}
-        <div className="transaction-id-entry">
+        <div className="transaction-id-entry transaction-id-entry-compact">
           <Field
             label="Transaction ID"
             error={errors.transactionId}
             hint={
-              values.autoGenerateTransactionId
-                ? 'The current sequence assigns this numeric ID when saved.'
-                : 'Enter 1 to 18 digits. IDs must be unique within this transaction type.'
+              values.transactionId
+                ? 'Custom IDs contain 1 to 18 digits and must be unique for this transaction type.'
+                : autoGenerationEnabled
+                  ? 'Leave blank to assign the next ID automatically.'
+                  : 'Automatic IDs are disabled. Enter a custom ID or change ID settings.'
             }
           >
             <input
               inputMode="numeric"
               maxLength={18}
-              value={
-                values.autoGenerateTransactionId
-                  ? modeSequence?.preview ?? ''
-                  : values.transactionId
-              }
+              value={values.transactionId}
               placeholder={
-                values.autoGenerateTransactionId
-                  ? 'Assigned when saved'
-                  : '0001'
+                autoGenerationEnabled ? 'Auto Generated' : 'Enter custom ID'
               }
-              disabled={values.autoGenerateTransactionId}
-              readOnly={values.autoGenerateTransactionId}
               onChange={(event) => {
                 clearFieldError(setErrors, 'transactionId')
                 setValues((current) => ({
@@ -2415,30 +2400,18 @@ export function TransactionDialog({
                   transactionId: event.target.value.replace(/\D/g, '').slice(0, 18),
                 }))
               }}
+              onBlur={() => {
+                if (values.transactionId.trim()) return
+                setValues((current) => ({ ...current, transactionId: '' }))
+              }}
             />
           </Field>
-          <div className="transaction-id-auto-toggle">
-            <Checkbox
-              checked={values.autoGenerateTransactionId}
-              onCheckedChange={(autoGenerateTransactionId) => {
-                clearFieldError(setErrors, 'transactionId')
-                setValues((current) => ({
-                  ...current,
-                  autoGenerateTransactionId,
-                  transactionId: autoGenerateTransactionId
-                    ? ''
-                    : current.transactionId,
-                }))
-              }}
-              aria-label="Auto Generate transaction ID"
-            />
-            <span>
-              <strong>Auto Generate</strong>
-              <small>
-                Initial setting for {friendlyLabel(mode).toLowerCase()} transactions
-              </small>
-            </span>
-          </div>
+          <a
+            className="transaction-inline-settings-link"
+            href="/app/settings?transactionSettings=sequence#settings-5"
+          >
+            ID settings
+          </a>
         </div>
         <Field
           label={mode === 'transfer' ? 'Destination' : 'Name or description'}
@@ -2707,6 +2680,15 @@ export function TransactionDialog({
             </Select>
           </Field>
         </div>
+        <div className="transaction-form-shortcuts" aria-label="Transaction setup shortcuts">
+          <a
+            className="transaction-inline-settings-link"
+            href="/app/settings?transactionSettings=categories#settings-5"
+          >
+            <Plus aria-hidden="true" />
+            Add category
+          </a>
+        </div>
         {!demoMode && categoriesQuery.isError ? (
           <p className="field-error" role="alert">
             Categories could not be loaded. Close this dialog and try again.
@@ -2751,6 +2733,8 @@ export function TransactionDialog({
               !availableAccounts.length ||
               (!demoMode && categoriesQuery.isLoading) ||
               (!demoMode && categoriesQuery.isError) ||
+              (!demoMode && sequencesQuery.isLoading) ||
+              (!demoMode && sequencesQuery.isError) ||
               !categoryNames.length ||
               (!demoMode &&
                 mode === 'split' &&

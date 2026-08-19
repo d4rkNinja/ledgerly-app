@@ -12,7 +12,7 @@ import {
   AnimatedToastStack,
   useAnimatedToastStack,
 } from '@/components/motion/animated-toast-stack'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import { Button } from '@/components/ui'
 import {
   canShareNatively,

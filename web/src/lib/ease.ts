@@ -51,32 +51,3 @@ export const SPRING_GLIDE = {
   damping: 50,
   mass: 0.5,
 } as const;
-
-/** Shared timing scale for product UI state changes. */
-export const MOTION_DURATION = {
-  instant: 0,
-  fast: 0.16,
-  standard: 0.28,
-  deliberate: 0.4,
-} as const;
-
-/** Small distances keep product entrances legible without feeling theatrical. */
-export const MOTION_DISTANCE = {
-  content: 8,
-  panel: 12,
-} as const;
-
-export const TRANSITION_FADE = {
-  duration: MOTION_DURATION.fast,
-  ease: EASE_OUT,
-} as const;
-
-export const TRANSITION_CONTENT = {
-  duration: MOTION_DURATION.standard,
-  ease: EASE_OUT,
-} as const;
-
-export const TRANSITION_PANEL = {
-  duration: MOTION_DURATION.deliberate,
-  ease: EASE_OUT,
-} as const;

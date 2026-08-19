@@ -26,7 +26,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/components/motion/popover'
+} from '@/components/beui/popover'
 
 type PopoverSide = 'top' | 'bottom'
 type PopoverAlign = 'start' | 'end'

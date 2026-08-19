@@ -22,7 +22,7 @@ import {
   motion,
   useReducedMotion,
 } from 'motion/react'
-import { SPRING_PRESS } from '@/lib/ease'
+import { SPRING_PRESS } from '@/lib/app-motion'
 import {
   Button,
   PageHeader,

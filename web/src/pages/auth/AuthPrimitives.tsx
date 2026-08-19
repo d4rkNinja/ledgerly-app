@@ -5,7 +5,7 @@ import {
   MOTION_DISTANCE,
   SPRING_SWAP,
   TRANSITION_FADE,
-} from '@/lib/ease'
+} from '@/lib/app-motion'
 
 export function AnimatedFormAlert({
   id,

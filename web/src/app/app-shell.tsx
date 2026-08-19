@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useReducedMotion } from 'motion/react'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
-import { BottomSheet } from '@/components/motion/bottom-sheet'
+import { BottomSheet } from '@/components/beui/bottom-sheet'
 import {
   AnimatedToastStack,
   useAnimatedToastStack,

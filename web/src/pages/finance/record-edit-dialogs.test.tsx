@@ -162,7 +162,10 @@ describe('TransactionEditDialog date selection', () => {
 
     await user.click(date)
     await user.click(
-      screen.getByRole('gridcell', { name: 'Choose August 17, 2026' }),
+      screen.getByRole('gridcell', {
+        name: 'Choose August 17, 2026',
+        hidden: true,
+      }),
     )
     await user.click(screen.getByRole('button', { name: 'Save transaction' }))
 

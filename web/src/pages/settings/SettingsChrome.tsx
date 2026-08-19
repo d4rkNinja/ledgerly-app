@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { SuccessNotice } from '@/components/ui'
-import { EASE_OUT } from '@/lib/ease'
+import { EASE_OUT } from '@/lib/app-motion'
 import {
   SETTINGS_SECTIONS,
   type PreferenceFeedback,
