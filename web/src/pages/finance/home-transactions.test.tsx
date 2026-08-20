@@ -819,6 +819,62 @@ describe("TransactionsPage date filters", () => {
     vi.unstubAllGlobals();
   });
 
+  it("focuses and exposes the first invalid field on empty submission", async () => {
+    const user = userEvent.setup();
+    apiMocks.get.mockImplementation((path: string) => {
+      if (path.endsWith("/accounts")) {
+        return Promise.resolve([
+          {
+            id: "account-home",
+            name: "Everyday account",
+            type: "Cash",
+            balanceMinor: 0,
+            currency: "INR",
+          },
+        ]);
+      }
+      if (path.includes("/transaction-categories")) {
+        return Promise.resolve([
+          {
+            id: "category-general",
+            transactionType: "expense",
+            name: "General",
+            sortOrder: 0,
+            isActive: true,
+            usageCount: 0,
+          },
+        ]);
+      }
+      if (path.endsWith("/transaction-sequences")) {
+        return Promise.resolve([
+          {
+            transactionType: "expense",
+            autoGenerate: true,
+            nextNumber: 1,
+            minimumDigits: 4,
+            preview: "0001",
+            minimumAvailableNextNumber: 1,
+          },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    renderLiveTransactionDialog();
+
+    const name = screen.getByRole("combobox", {
+      name: "Name or description",
+    });
+    const amount = screen.getByRole("textbox", { name: "Amount" });
+
+    const save = screen.getByRole("button", { name: "Save" });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user.click(save);
+
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(amount).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("offers contact and saved-name options in entry search", async () => {
     const user = userEvent.setup();
     apiMocks.get.mockImplementation((path: string) => {
@@ -1353,6 +1409,16 @@ describe("HomePage monthly summary", () => {
     expect(
       balance.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("uses complete creator metadata for demo activity", async () => {
+    renderHome("/app/home?month=2026-07", appValue);
+
+    expect(
+      await screen.findByRole("button", { name: /Aarav Sharma Salary/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Creator unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText("Creation time unavailable")).not.toBeInTheDocument();
   });
 
   it("keeps the period selector and review reachable when no accounts are active", async () => {

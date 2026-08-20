@@ -2,7 +2,7 @@
 // beui.dev/components/blocks/command-palette
 
 import { motion, useReducedMotion } from "motion/react";
-import { Search, X, type LucideIcon } from "lucide-react";
+import { Search, type LucideIcon } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { EASE_OUT } from "@/lib/ease";
+import { useTouchCapable } from "@/lib/hooks/use-touch-capable";
 import { cn } from "@/lib/utils";
 
 export type CommandItem = {
@@ -84,14 +85,13 @@ export function CommandPalette({
   useEffect(() => setMounted(true), []);
   const uid = useId();
   const reduce = useReducedMotion();
+  const canTouch = useTouchCapable();
   const updateQuery = useCallback((value: string) => {
     setQuery(value);
     setActive(0);
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -100,14 +100,6 @@ export function CommandPalette({
         e.key.toLowerCase() === shortcut.toLowerCase()
       ) {
         e.preventDefault();
-        if (
-          !open &&
-          document.querySelector(
-            '[role="dialog"]:not([aria-hidden="true"]):not([inert])',
-          )
-        ) {
-          return;
-        }
         setOpen(!open);
         return;
       }
@@ -122,26 +114,22 @@ export function CommandPalette({
 
   useEffect(() => {
     if (open) {
-      previousFocusRef.current =
-        document.activeElement instanceof HTMLElement
-          ? document.activeElement
-          : null;
       updateQuery("");
       setActive(0);
-      const focusFrame = requestAnimationFrame(() => inputRef.current?.focus());
-      return () => {
-        cancelAnimationFrame(focusFrame);
-        previousFocusRef.current?.focus();
-      };
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [open, updateQuery]);
 
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
+    const root = document.documentElement;
+    const previousRootOverflow = root.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    root.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = prev;
+      root.style.overflow = previousRootOverflow;
+      document.body.style.overflow = previousBodyOverflow;
     };
   }, [open]);
 
@@ -167,43 +155,17 @@ export function CommandPalette({
     });
     return Array.from(map.entries());
   }, [filtered]);
-  const renderedItems = useMemo(
-    () => grouped.flatMap(([, groupItems]) => groupItems),
-    [grouped],
-  );
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Tab") {
-      const focusable = Array.from(
-        panelRef.current?.querySelectorAll<HTMLElement>(
-          'button:not([disabled]):not([tabindex="-1"]), input:not([disabled]):not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])',
-        ) ?? [],
-      );
-      if (!focusable.length) {
-        e.preventDefault();
-        inputRef.current?.focus();
-      } else {
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((a) =>
-        Math.min(Math.max(0, renderedItems.length - 1), a + 1),
-      );
+      setActive((a) => Math.min(filtered.length - 1, a + 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((a) => Math.max(0, a - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      const it = renderedItems[active];
+      const it = filtered[active];
       if (it) {
         it.onSelect();
         setOpen(false);
@@ -229,6 +191,7 @@ export function CommandPalette({
   return createPortal(
     <div
       aria-hidden={!open}
+      inert={!open}
       className={cn(
         "fixed inset-0 z-[100]",
         open ? "pointer-events-auto" : "pointer-events-none",
@@ -237,29 +200,20 @@ export function CommandPalette({
       <motion.button
         type="button"
         aria-label="Close command palette"
-        tabIndex={-1}
         initial={false}
         animate={{ opacity: open ? 1 : 0 }}
-        transition={
-          reduce
-            ? { duration: 0 }
-            : { duration: open ? 0.18 : 0.12, ease: EASE_OUT }
-        }
+        transition={{ duration: open ? 0.18 : 0.12, ease: EASE_OUT }}
         onClick={() => setOpen(false)}
         className={cn(
-          "command-palette-backdrop absolute inset-0 bg-background/20",
-          open
-            ? "pointer-events-auto [backdrop-filter:blur(6px)_saturate(125%)] [-webkit-backdrop-filter:blur(6px)_saturate(125%)]"
-            : "pointer-events-none [backdrop-filter:none] [-webkit-backdrop-filter:none]",
+          "absolute inset-0 bg-background/5 [backdrop-filter:blur(12px)_saturate(140%)] [-webkit-backdrop-filter:blur(12px)_saturate(140%)]",
+          open ? "pointer-events-auto" : "pointer-events-none",
         )}
       />
       <div className="pointer-events-none absolute inset-0 flex items-start justify-center p-4 pt-[18vh]">
         <motion.div
-          ref={panelRef}
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
-          aria-hidden={!open}
           initial={false}
           animate={{
             opacity: open ? 1 : 0,
@@ -286,33 +240,34 @@ export function CommandPalette({
               value={query}
               onChange={(e) => updateQuery(e.target.value)}
               placeholder={placeholder}
-              aria-label="Search pages and navigation"
               tabIndex={open ? 0 : -1}
               role="combobox"
               aria-expanded={open}
               aria-controls={`${uid}-list`}
               aria-activedescendant={
-                renderedItems.length > 0 ? `${uid}-opt-${active}` : undefined
+                filtered.length > 0 ? `${uid}-opt-${active}` : undefined
               }
               aria-autocomplete="list"
-              className="h-12 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+              className={cn(
+                "h-12 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none",
+                // The palette focuses this field the moment it opens, and iOS
+                // zooms the page in on a focused field under 16px: the fixed
+                // overlay is magnified off-center — clipped leading edge, half
+                // an icon column — and the zoom outlives the palette. 16px on
+                // touch keeps the page at scale 1; pointer devices keep 14px.
+                canTouch && "text-base",
+              )}
             />
-            <button
-              type="button"
-              aria-label="Close command palette"
-              onClick={() => setOpen(false)}
-              tabIndex={open ? 0 : -1}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <kbd className="hidden rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline-block">
+              ESC
+            </kbd>
           </div>
           <div
             ref={listRef}
             id={`${uid}-list`}
             role="listbox"
             aria-label="Commands"
-            className="max-h-[60vh] overflow-y-auto p-2"
+            className="max-h-[60vh] overflow-y-auto overscroll-contain p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {filtered.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
@@ -344,9 +299,9 @@ export function CommandPalette({
                           it.onSelect();
                           setOpen(false);
                         }}
-                        tabIndex={-1}
+                        tabIndex={open ? 0 : -1}
                         className={cn(
-                          "relative isolate flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors",
+                          "relative isolate flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition-colors",
                           isActive
                             ? "text-foreground"
                             : "text-muted-foreground",

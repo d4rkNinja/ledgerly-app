@@ -7,6 +7,7 @@ import {
   isValidElement,
   type ReactElement,
   type ReactNode,
+  type Ref,
   useCallback,
   useContext,
   useEffect,
@@ -15,6 +16,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
+import { usePopoverPortalPosition } from "@/components/motion/popover-position";
 import { EASE_OUT, SPRING_PANEL } from "@/lib/ease";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +30,10 @@ type MorphContextValue = {
   toggle: () => void;
   triggerId: string;
   contentId: string;
+  /** The element the panel measures against — see `registerTrigger`. */
+  triggerRef: React.MutableRefObject<HTMLElement | null>;
+  registerTrigger: (node: HTMLElement | null) => void;
+  contentRef: React.MutableRefObject<HTMLDivElement | null>;
 };
 
 const MorphContext = createContext<MorphContextValue | null>(null);
@@ -60,7 +67,9 @@ export function MorphPopover({
   className,
 }: MorphPopoverProps) {
   const baseId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const [trigger, setTrigger] = useState<HTMLElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const controlled = controlledOpen !== undefined;
   const open = controlled ? controlledOpen : internalOpen;
@@ -74,12 +83,46 @@ export function MorphPopover({
   );
   const toggle = useCallback(() => setOpen(!open), [setOpen, open]);
 
+  // A trigger normally registers itself through MorphPopoverTrigger. It can't
+  // when something else already clones the element — a Tooltip wrapping the
+  // button, say — and an unregistered trigger leaves the panel with nothing to
+  // measure against, so it renders permanently invisible. The root boxes the
+  // trigger exactly (the content portals out of it), so it stands in until a
+  // real trigger registers, and stands in again if that one unmounts. Both are
+  // state, so a trigger arriving while the panel is open re-anchors it.
+  const anchorRef = useMemo<React.MutableRefObject<HTMLElement | null>>(
+    () => ({ current: trigger ?? root }),
+    [root, trigger],
+  );
+
+  // The panel is a `role="dialog"` and goes inert the moment it closes, so
+  // focus cannot be left sitting inside it: a dismissal hands it back to the
+  // trigger, the way the ARIA dialog pattern asks. A pointer dismissal takes
+  // the focus onward itself when it lands on something focusable — this only
+  // catches the case where it would otherwise be stranded. When no trigger has
+  // registered, the root anchor stands in only if it can actually hold focus;
+  // there is nowhere better than where the keyboard already is, so leave it.
+  const close = useCallback(() => {
+    setOpen(false);
+    const focused = document.activeElement;
+    const inPanel =
+      focused instanceof HTMLElement && contentRef.current?.contains(focused);
+    if (!inPanel) return;
+    const restore = trigger ?? (root && root.tabIndex >= 0 ? root : null);
+    restore?.focus();
+  }, [root, setOpen, trigger]);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     const onPointer = (e: PointerEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node))
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        root &&
+        !root.contains(target) &&
+        !contentRef.current?.contains(target)
+      )
+        close();
     };
     window.addEventListener("keydown", onKey);
     window.addEventListener("pointerdown", onPointer);
@@ -87,7 +130,7 @@ export function MorphPopover({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("pointerdown", onPointer);
     };
-  }, [open, setOpen]);
+  }, [open, root, close]);
 
   const ctx = useMemo<MorphContextValue>(
     () => ({
@@ -96,13 +139,16 @@ export function MorphPopover({
       toggle,
       triggerId: `${baseId}-trigger`,
       contentId: `${baseId}-content`,
+      triggerRef: anchorRef,
+      registerTrigger: setTrigger,
+      contentRef,
     }),
-    [open, setOpen, toggle, baseId],
+    [open, setOpen, toggle, baseId, anchorRef],
   );
 
   return (
     <MorphContext.Provider value={ctx}>
-      <div ref={rootRef} className={cn("relative inline-flex", className)}>
+      <div ref={setRoot} className={cn("relative inline-flex", className)}>
         {children}
       </div>
     </MorphContext.Provider>
@@ -111,6 +157,16 @@ export function MorphPopover({
 
 export interface MorphPopoverTriggerProps {
   children: ReactElement;
+}
+
+function mergeRefs<T>(...refs: Array<Ref<T> | undefined>) {
+  return (node: T | null) => {
+    for (const ref of refs) {
+      if (typeof ref === "function") ref(node);
+      else if (ref && typeof ref === "object")
+        (ref as React.MutableRefObject<T | null>).current = node;
+    }
+  };
 }
 
 /** Wraps a single element, toggling the popover on click. */
@@ -122,14 +178,16 @@ export function MorphPopoverTrigger({ children }: MorphPopoverTriggerProps) {
   const childOnClick = child.props.onClick as
     | ((e: unknown) => void)
     | undefined;
+  const childRef = (child.props as { ref?: Ref<HTMLElement> }).ref;
 
   return cloneElement(child, {
     id: ctx.triggerId,
+    ref: mergeRefs(childRef, ctx.registerTrigger),
     onClick: (e: unknown) => {
       childOnClick?.(e);
       ctx.toggle();
     },
-    "aria-haspopup": "menu",
+    "aria-haspopup": "dialog",
     "aria-expanded": ctx.open,
     "aria-controls": ctx.open ? ctx.contentId : undefined,
   });
@@ -174,13 +232,24 @@ export function MorphPopoverContent({
 }: MorphPopoverContentProps) {
   const ctx = useMorphContext("MorphPopoverContent");
   const reduce = useReducedMotion() ?? false;
-
-  const posClass = cn(
-    side === "bottom" ? "top-full" : "bottom-full",
-    align === "end" ? "right-0" : "left-0",
+  const [portalReady, setPortalReady] = useState(false);
+  const layout = usePopoverPortalPosition(
+    ctx.triggerRef,
+    ctx.contentRef,
+    portalReady && ctx.open,
   );
-  const marginStyle =
-    side === "bottom" ? { marginTop: sideOffset } : { marginBottom: sideOffset };
+
+  useEffect(() => setPortalReady(true), []);
+  const left = layout
+    ? align === "end"
+      ? layout.trigger.left + layout.trigger.width - layout.content.width
+      : layout.trigger.left
+    : 0;
+  const top = layout
+    ? side === "bottom"
+      ? layout.trigger.top + layout.trigger.height + sideOffset
+      : layout.trigger.top - layout.content.height - sideOffset
+    : 0;
 
   // Both directions travel between the exact same hidden/show states. Exit
   // targets "hidden" directly instead of introducing separate choreography.
@@ -203,10 +272,14 @@ export function MorphPopoverContent({
         },
       };
 
-  return (
+  // Keep the server and first client render identical, then mount the portal.
+  if (!portalReady) return null;
+
+  return createPortal(
     <AnimatePresence>
       {ctx.open ? (
         <motion.div
+          data-morph-popover-portal=""
           // Wrapper carries the shadow as a drop-shadow filter, which hugs the
           // clipped shape below (box-shadow would just get clipped away).
           variants={wrap}
@@ -214,14 +287,19 @@ export function MorphPopoverContent({
           animate={reduce ? { opacity: 1 } : "show"}
           exit={reduce ? { opacity: 0 } : "hidden"}
           transition={reduce ? { duration: 0.12 } : undefined}
-          style={{ transformOrigin: originFor(side, align), ...marginStyle }}
-          className={cn(
-            "absolute z-30 [filter:drop-shadow(0_10px_18px_rgba(0,0,0,0.14))]",
-            posClass,
-          )}
+          style={{
+            left,
+            top,
+            visibility: layout ? "visible" : "hidden",
+            transformOrigin: originFor(side, align),
+          }}
+          className="fixed z-[9999] [filter:drop-shadow(0_10px_18px_rgba(0,0,0,0.14))]"
         >
           <motion.div
+            ref={ctx.contentRef}
             id={ctx.contentId}
+            role="dialog"
+            aria-labelledby={ctx.triggerId}
             variants={clip}
             style={{ borderRadius: radius }}
             className={cn(
@@ -233,6 +311,7 @@ export function MorphPopoverContent({
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

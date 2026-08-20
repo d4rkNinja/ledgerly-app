@@ -24,6 +24,7 @@ import {
   SPRING_PANEL,
   SPRING_SWAP,
 } from "@/lib/ease";
+import { capturePointer, TOUCH_GESTURE_CONTENT_CLASS } from "@/lib/touch";
 import { cn } from "@/lib/utils";
 
 export type PullToRefreshStatus =
@@ -75,6 +76,11 @@ const CHARACTER_LOOP = {
   ease: EASE_IN_OUT,
   repeat: Number.POSITIVE_INFINITY,
 } as const;
+const CALM_PULSE = {
+  duration: 1.2,
+  ease: EASE_IN_OUT,
+  repeat: Number.POSITIVE_INFINITY,
+} as const;
 const LABEL_SWAP = { duration: 0.16, ease: EASE_OUT } as const;
 
 function resistedDistance(distance: number, maxPull: number) {
@@ -109,19 +115,13 @@ function RefreshBuddy({
         animate={
           refreshing
             ? reduce
-              ? { opacity: 1 }
+              ? { opacity: [0.55, 1, 0.55] }
               : { y: [0, -2, 0], rotate: [-3, 3, -3] }
             : reduce
               ? { opacity: 1 }
               : { y: 0, rotate: 0, scale: ready ? 1.08 : 1 }
         }
-        transition={
-          reduce
-            ? { duration: 0 }
-            : refreshing
-              ? CHARACTER_LOOP
-              : SPRING_SWAP
-        }
+        transition={refreshing ? (reduce ? CALM_PULSE : CHARACTER_LOOP) : SPRING_SWAP}
       >
         <motion.g
           style={{ transformOrigin: "18px 18px" }}
@@ -132,13 +132,7 @@ function RefreshBuddy({
                 ? undefined
                 : { rotate: ready ? 0 : -35 }
           }
-          transition={
-            reduce
-              ? { duration: 0 }
-              : refreshing
-                ? CHARACTER_LOOP
-                : SPRING_SWAP
-          }
+          transition={refreshing ? (reduce ? CALM_PULSE : CHARACTER_LOOP) : SPRING_SWAP}
           className={cn(
             "transition-opacity duration-150",
             ready || refreshing ? "opacity-100" : "opacity-0",
@@ -407,9 +401,12 @@ export function PullToRefresh({
     return () => animationRef.current?.stop();
   }, []);
 
-  const startMousePull = (event: ReactPointerEvent<HTMLElement>) => {
+  const startPointerPull = (event: ReactPointerEvent<HTMLElement>) => {
+    // Everything but touch: a finger is driven by the native listeners above,
+    // which can `preventDefault` the page scroll a passive React handler
+    // cannot. A pen fires no touch events at all, so this is its only route.
     if (
-      event.pointerType !== "mouse" ||
+      event.pointerType === "touch" ||
       event.button !== 0 ||
       event.currentTarget.scrollTop > 0 ||
       disabled ||
@@ -418,7 +415,7 @@ export function PullToRefresh({
       return;
     }
 
-    event.currentTarget.setPointerCapture(event.pointerId);
+    capturePointer(event.currentTarget, event.pointerId);
     gestureRef.current = {
       active: true,
       startX: event.clientX,
@@ -427,7 +424,7 @@ export function PullToRefresh({
     };
   };
 
-  const moveMousePull = (event: ReactPointerEvent<HTMLElement>) => {
+  const movePointerPull = (event: ReactPointerEvent<HTMLElement>) => {
     const gesture = gestureRef.current;
     if (!gesture.active || gesture.pointerId !== event.pointerId) return;
 
@@ -453,8 +450,8 @@ export function PullToRefresh({
       aria-busy={isRefreshing}
       data-state={status}
       data-disabled={disabled || undefined}
-      onPointerDown={startMousePull}
-      onPointerMove={moveMousePull}
+      onPointerDown={startPointerPull}
+      onPointerMove={movePointerPull}
       onPointerUp={(event) => {
         if (gestureRef.current.pointerId === event.pointerId) finishPull();
       }}
@@ -463,6 +460,14 @@ export function PullToRefresh({
       }}
       className={cn(
         "relative w-full overflow-y-auto overscroll-contain bg-background",
+        // No `touch-none` here — this element is the scroller, and the pull
+        // only takes over once the content is already at the top. The callout
+        // has to be off from the first frame though: iOS decides on it while
+        // the finger is still resting, long before the pull is recognised.
+        // Whatever the consumer renders inside stays selectable with a mouse;
+        // only the pull itself suppresses selection, and only while it runs,
+        // so dragging the page down cannot highlight it on the way.
+        TOUCH_GESTURE_CONTENT_CLASS,
         status === "pulling" || status === "ready"
           ? "cursor-grabbing select-none"
           : "cursor-grab",

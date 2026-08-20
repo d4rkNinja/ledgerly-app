@@ -113,7 +113,6 @@ export function TabsTrigger({
 }) {
   const { value: current, setValue, layoutId, variant } = useTabs();
   const active = current === value;
-  const usesDefaultIndicator = indicatorClassName === undefined;
 
   if (variant === "underline") {
     return (
@@ -132,6 +131,7 @@ export function TabsTrigger({
         {active ? (
         <motion.span
           layoutId={layoutId}
+          layout="position"
           className={cn(
             "absolute -bottom-px left-0 right-0 h-px bg-primary",
             indicatorClassName,
@@ -142,9 +142,6 @@ export function TabsTrigger({
     );
   }
 
-  // The default max-contrast pill uses exclusion so labels invert exactly as
-  // the indicator passes beneath them. Custom indicators retain explicit text
-  // colors because their background may not be suitable for blending.
   const radius = variant === "pill" ? "rounded-full" : "rounded-md";
 
   return (
@@ -152,6 +149,7 @@ export function TabsTrigger({
       {active ? (
         <motion.span
           layoutId={layoutId}
+          layout="position"
           style={{ borderRadius: variant === "pill" ? 9999 : 8 }}
           className={cn(
             "absolute inset-0 bg-primary",
@@ -167,16 +165,10 @@ export function TabsTrigger({
         onClick={() => setValue(value)}
         className={cn(
           "relative z-10 inline-flex items-center justify-center whitespace-nowrap bg-transparent px-3.5 py-1.5 text-sm font-medium outline-none",
-          usesDefaultIndicator
-            ? "text-white mix-blend-exclusion transition-opacity"
-            : "transition-colors",
-          usesDefaultIndicator
-            ? active
-              ? "opacity-100"
-              : "opacity-70 hover:opacity-100"
-            : active
-              ? "text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground",
+          "transition-colors",
+          active
+            ? "text-primary-foreground"
+            : "text-muted-foreground hover:text-foreground",
           radius,
           className,
         )}
@@ -206,7 +198,7 @@ export function TabsContent({ value, children, className }: { value: string; chi
       key={value}
       initial={{ opacity: 0, y: reduce ? 0 : 4 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={reduce ? { duration: 0 } : { duration: 0.18, ease: EASE_OUT }}
+      transition={{ duration: 0.18, ease: EASE_OUT }}
       className={cn("mt-4", className)}
     >
       {children}

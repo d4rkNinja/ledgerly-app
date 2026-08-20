@@ -105,7 +105,6 @@ const VARIANT_COMPONENTS: {
   "perlin-noise": PerlinNoise,
 };
 
-// oxlint-disable-next-line react/only-export-components -- Consumers discover supported variants from the same BeUI component entry point.
 export const SHADER_BACKGROUND_VARIANTS = Object.keys(
   VARIANT_COMPONENTS,
 ) as ShaderBackgroundVariant[];

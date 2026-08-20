@@ -46,6 +46,7 @@ applications/android/gradle/wrapper/gradle-*-all.zip
 .qa/
 .tmp-go-cache*/
 artifacts/
+dogfood-output/
 
 # IDE and OS metadata
 .idea/

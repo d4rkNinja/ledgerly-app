@@ -22,7 +22,9 @@ import {
   motion,
   useReducedMotion,
 } from 'motion/react'
+import { useMemo, useState } from 'react'
 import { SPRING_PRESS } from '@/lib/app-motion'
+import { openExternalUrl } from '@/platform/external-links'
 import {
   Button,
   PageHeader,
@@ -33,6 +35,37 @@ import {
   MotionLink,
   PageFrame,
 } from './shared'
+
+const HELP_TOPICS = [
+  {
+    icon: LockKeyhole,
+    title: 'Privacy and security',
+    copy: 'Visibility, application PIN, and sessions',
+    keywords: 'privacy security pin device session sign in amounts',
+    to: '/app/settings#settings-2',
+  },
+  {
+    icon: WalletCards,
+    title: 'Accounts and transactions',
+    copy: 'Accounts, IDs, categories, transfers, and splits',
+    keywords: 'account transaction id category transfer split entry expense income',
+    to: '/app/settings?transactionSettings=categories#settings-5',
+  },
+  {
+    icon: Users,
+    title: 'Workspace members',
+    copy: 'Invites, roles, and shared access',
+    keywords: 'workspace member invite invitation role family shared access',
+    to: '/app/family',
+  },
+  {
+    icon: FileText,
+    title: 'Office claims',
+    copy: 'Receipts, approvals, and reimbursements',
+    keywords: 'office claim receipt approval reimbursement expense',
+    to: '/app/office',
+  },
+] as const
 
 export function MorePage() {
   const reduce = useReducedMotion()
@@ -111,26 +144,32 @@ export function MorePage() {
 
 export function HelpPage() {
   const reduce = useReducedMotion()
+  const [query, setQuery] = useState('')
+  const filteredTopics = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase()
+    if (!normalized) return HELP_TOPICS
+    return HELP_TOPICS.filter(({ title, copy, keywords }) =>
+      `${title} ${copy} ${keywords}`.toLocaleLowerCase().includes(normalized),
+    )
+  }, [query])
+
   return (
     <PageFrame className="help-page support-page">
       <PageHeader title="Help and support" description="Answers without financial jargon." />
       <label className="help-search">
         <Search aria-hidden="true" />
         <input
-          placeholder="Help search is not connected yet"
-          aria-label="Help search is not connected yet"
-          disabled
+          type="search"
+          placeholder="Search help topics"
+          aria-label="Search help topics"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
         />
       </label>
-      <div className="help-grid">
-        {[
-          [LockKeyhole, 'Privacy and security', 'Visibility, application PIN, and sessions'],
-          [WalletCards, 'Accounts and transactions', 'Imports, categories, transfers, and splits'],
-          [Users, 'Workspace members', 'Invites, roles, and shared access'],
-          [FileText, 'Office claims', 'Receipts, approvals, and reimbursements'],
-        ].map(([Icon, title, copy], index) => (
+      <div className="help-grid" aria-live="polite">
+        {filteredTopics.map(({ icon: Icon, title, copy, to }, index) => (
           <motion.article
-            key={String(title)}
+            key={title}
             initial={reduce ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -140,17 +179,24 @@ export function HelpPage() {
             }}
           >
             <Icon aria-hidden="true" />
-            <h2>{String(title)}</h2>
-            <p>{String(copy)}</p>
-            <button
-              type="button"
-              disabled
-              title="Help articles are not connected yet"
+            <h2>{title}</h2>
+            <p>{copy}</p>
+            <MotionLink
+              to={to}
+              whileTap={reduce ? undefined : { scale: 0.97 }}
+              transition={reduce ? { duration: 0 } : SPRING_PRESS}
             >
-              View articles <ArrowRight aria-hidden="true" />
-            </button>
+              Open guide <ArrowRight aria-hidden="true" />
+            </MotionLink>
           </motion.article>
         ))}
+        {filteredTopics.length === 0 ? (
+          <div className="help-search-empty" role="status">
+            <CircleHelp aria-hidden="true" />
+            <strong>No matching help topic</strong>
+            <span>Try “transactions”, “members”, “privacy”, or “claims”.</span>
+          </div>
+        ) : null}
       </div>
       <Section className="support-contact">
         <div>
@@ -159,10 +205,13 @@ export function HelpPage() {
         </div>
         <Button
           variant="secondary"
-          disabled
-          title="Support contact is not connected yet"
+          onClick={() => {
+            void openExternalUrl(
+              'https://github.com/d4rkNinja/ledgerly-app/discussions',
+            )
+          }}
         >
-          Contact support
+          Open support discussions
         </Button>
       </Section>
     </PageFrame>

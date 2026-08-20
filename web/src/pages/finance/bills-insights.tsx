@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   useState,
 } from 'react'
+import { Link } from 'react-router'
 import {
   motion,
   useReducedMotion,
@@ -557,13 +558,12 @@ export function InsightsPage() {
             Dining spend fell after you set a weekly limit. At the current pace,
             you could move the remaining amount to your emergency goal.
           </p>
-          <Button
-            variant="secondary"
-            disabled
-            title="Suggestion review is not connected yet"
+          <Link
+            className="button button-secondary"
+            to="/app/budgets"
           >
             Review suggestion
-          </Button>
+          </Link>
         </Section>
       </div>
       <ShareSheet
