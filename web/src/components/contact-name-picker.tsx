@@ -30,6 +30,11 @@ type ContactNamePickerProps = {
   inputPlaceholder?: string
   openOnFocus?: boolean
   disabled?: boolean
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean | 'true' | 'false'
+  'aria-labelledby'?: string
+  'data-field-control'?: string | boolean
 }
 
 type Suggestion =
@@ -83,6 +88,11 @@ export function ContactNamePicker({
   inputPlaceholder = 'City Supermarket',
   openOnFocus = false,
   disabled = false,
+  id: inputId,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
+  'aria-labelledby': ariaLabelledBy,
+  'data-field-control': dataFieldControl,
 }: ContactNamePickerProps) {
   const reduce = useReducedMotion()
   const menuId = useId()
@@ -213,8 +223,13 @@ export function ContactNamePicker({
     >
       <input
         ref={inputRef}
+        id={inputId}
         value={inputValue}
         aria-label={inputAriaLabel}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
+        aria-labelledby={ariaLabelledBy}
+        data-field-control={dataFieldControl}
         aria-autocomplete="list"
         aria-controls={menuOpen ? menuId : undefined}
         aria-expanded={menuOpen}

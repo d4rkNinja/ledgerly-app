@@ -194,7 +194,6 @@ function getFileIcon(item: FileUploadItem) {
   return FileIcon;
 }
 
-// oxlint-disable-next-line react/only-export-components -- The BeUI module intentionally exposes its item factory beside FileUpload.
 export function createFileUploadItem(file: File, index = 0): FileUploadItem {
   return {
     id: `${Date.now()}-${index}-${file.name}`,
@@ -590,7 +589,7 @@ export function FileUpload({
         </span>
       </button>
 
-      <div className={cn("space-y-2", classNames?.queue)}>
+      <ul className={cn("space-y-2", classNames?.queue)}>
         <AnimatePresence initial={false}>
           {items.map((item) => (
             <FileUploadRow
@@ -602,7 +601,7 @@ export function FileUpload({
             />
           ))}
         </AnimatePresence>
-      </div>
+      </ul>
     </div>
   );
 }

@@ -144,6 +144,14 @@ export const navigationRegistry: readonly AppNavigationItem[] = [
     icon: Settings,
     desktopSection: 'footer',
     searchGroup: 'Account',
+    searchKeywords: [
+      'IDs',
+      'transaction IDs',
+      'ID sequence',
+      'auto generate ID',
+      'categories',
+      'transaction categories',
+    ],
   },
   {
     id: 'help',

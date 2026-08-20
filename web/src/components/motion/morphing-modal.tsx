@@ -44,6 +44,7 @@ export function MorphingModal({
   return (
     <div
       aria-hidden={!open}
+      inert={!open}
       className={cn(
         "fixed inset-0 z-[80]",
         open ? "pointer-events-auto" : "pointer-events-none",

@@ -154,6 +154,13 @@ import { TransactionEditDialog } from './record-edit-dialogs'
 const demoTransactions: Transaction[] = demoTransactionsWithoutIds.map(
   (transaction, index) => ({
     ...transaction,
+    createdAt: transaction.createdAt ?? transaction.occurredAt,
+    creator: transaction.creator ?? {
+      name: 'Aarav Sharma',
+      initials: 'AS',
+      status: 'active',
+      isCurrentUser: true,
+    },
     transactionId:
       transaction.direction === 'credit'
         ? '0001'
@@ -2410,7 +2417,7 @@ export function TransactionDialog({
             className="transaction-inline-settings-link"
             href="/app/settings?transactionSettings=sequence#settings-5"
           >
-            ID settings
+            Add or manage IDs
           </a>
         </div>
         <Field
@@ -2443,6 +2450,7 @@ export function TransactionDialog({
             </Select>
           ) : (
             <ContactNamePicker
+              data-field-control
               inputValue={values.merchant}
               inputAriaLabel="Name or description"
               contacts={contacts}
@@ -2686,7 +2694,7 @@ export function TransactionDialog({
             href="/app/settings?transactionSettings=categories#settings-5"
           >
             <Plus aria-hidden="true" />
-            Add category
+            Add or manage categories
           </a>
         </div>
         {!demoMode && categoriesQuery.isError ? (

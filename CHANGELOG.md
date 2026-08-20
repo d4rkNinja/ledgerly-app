@@ -6,56 +6,54 @@ release is cut.
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-08-20
+
 ### Added
 
-- Reviewed member-view and closed shared-workspace reporting-period snapshots
-  with explicit scope, currency, civil-date bounds, and IANA-timezone evidence.
-- Persistent dashboard markers, cumulative post-review deltas, and paginated
-  privacy-aware transaction revision drill-downs with occurrence, available
-  creation/edit timestamps, editor attribution, split-change signals, and
-  workflow-state history.
-- Workspace ledger versions and atomic before/after transaction audits for
-  creates, edits, deletes, and category rename/replacement migrations.
-- Immutable re-review cycles that preserve earlier checkpoints while resetting
-  the latest period marker after corrections have been acknowledged.
-- Workspace-scoped numeric transaction IDs with no prefixes and a default
-  `0001` format.
-- Independent atomic sequences for expense, income, transfer, and split
-  transactions, including automatic or manual IDs, configurable next numbers,
-  digit widths, previews, and conflict validation.
-- Idempotent startup backfill for existing transactions and supporting MongoDB
-  uniqueness, lookup, ordering, and sequence indexes.
-- Configurable workspace categories for all four transaction modes, with
-  default seeding, add, rename, enable/disable, reorder, unused deletion, and
-  replacement of categories already in use.
-- Settings → Transactions UI for sequence and category management.
-- Transaction-ID display and copy actions across transaction list, detail,
-  recent activity, edit, share, and export surfaces.
-- Production split-transaction entry with active workspace-member shares and
-  exact minor-unit total validation.
-- Combined transaction filters for ID, type, category, account, contact,
-  merchant, date, and amount.
+- Every transaction now has an easy-to-find numeric ID, with copy actions in
+  transaction lists, details, recent activity, editing, sharing, and exports.
+- You can use automatically generated IDs or enter your own, and configure the
+  next number and digit length separately for expenses, income, transfers, and
+  split transactions.
+- Categories can now be added, renamed, reordered, enabled, disabled, deleted,
+  or replaced from transaction entry and Settings → Transactions.
+- Transaction search now combines ID, type, category, account, contact,
+  merchant, date, and amount filters.
+- Split transactions can be assigned to active workspace members with exact
+  share-total validation.
+- Shared workspaces now include reporting-period reviews, correction cycles,
+  change summaries, and a privacy-aware transaction history showing who changed
+  what and when.
 
 ### Changed
 
-- Transaction creation and editing now load category definitions from the API
-  instead of relying on permanent frontend arrays.
-- CSV export now shares the transaction query contract, respects active
-  filters, uses display names and major-unit amounts, emits UTF-8, and returns a
-  month-specific filename.
-- Dashboard activity exposes transaction IDs, and period verification confirms
-  financial totals use the declared transaction date.
+- The entire application now uses a mobile-first layout that progressively
+  adapts to tablets and desktops, with consistent light and dark themes.
+- Transaction IDs show `Auto Generated` directly in the ID field by default.
+  Typing creates a custom ID; clearing the field restores automatic generation.
+- Important actions such as Add Category and ID management are now visible in
+  transaction forms, Settings, global search, and help guidance.
+- The interface now uses freshly installed official BeUI components for more
+  consistent controls, interactions, and visual styling.
+- Transaction forms now use the latest workspace categories from the server.
+- CSV exports respect the active filters, use readable names and amounts, and
+  download with a month-specific filename.
 
 ### Fixed
 
-- Backdated and date-only transactions now remain in the intended civil
-  reporting month across positive and negative UTC offsets and DST changes.
-- Private or no-longer-visible transaction revisions are redacted from period
-  review details, and revision totals retain exact integer precision.
-- Exact transaction-ID workspace search is no longer lost behind a bounded set
-  of prefix matches.
-- Date-only transaction and export bounds are parsed consistently, with an
-  inclusive end date.
-- Split and expense filtering now use the current split data rather than an
-  immutable numbering scope; CSV type labels follow the same rule.
-- Browser clients can read the server-provided export filename through CORS.
+- Removed horizontal overflow and hard-to-reach navigation across public and
+  signed-in pages at mobile, tablet, and desktop sizes.
+- Form labels, validation messages, invalid states, and first-error focus now
+  work consistently, including with keyboard and assistive technology.
+- Previously inactive Help and Insights actions now open useful destinations,
+  and demo activity correctly identifies its creator.
+- Password recovery no longer claims to send an email when no delivery service
+  is configured.
+- Frontend actions now match the available backend routes and methods, reducing
+  failed or incomplete API interactions.
+- Backdated and date-only transactions stay in the intended reporting month
+  across time zones and daylight-saving changes.
+- Exact transaction-ID search, date ranges, split filtering, export labels, and
+  browser download filenames now behave consistently.
+- Private transaction changes remain hidden from people who can no longer view
+  them, while financial totals retain exact precision.

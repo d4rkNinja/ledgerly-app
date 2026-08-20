@@ -212,21 +212,12 @@ export function CenterMorphModalContent({
   const [mounted, setMounted] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-  const setOpenRef = useRef(context.setOpen);
 
   useEffect(() => setMounted(true), []);
-  useEffect(() => {
-    setOpenRef.current = context.setOpen;
-  }, [context.setOpen]);
 
   useEffect(() => {
     if (!context.open) return;
 
-    previousFocusRef.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
@@ -238,7 +229,7 @@ export function CenterMorphModalContent({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && dismissible) {
         event.preventDefault();
-        setOpenRef.current(false);
+        context.setOpen(false);
         return;
       }
 
@@ -266,12 +257,9 @@ export function CenterMorphModalContent({
       cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = previousOverflow;
-      (
-        document.getElementById(context.triggerId) ??
-        previousFocusRef.current
-      )?.focus();
+      document.getElementById(context.triggerId)?.focus();
     };
-  }, [context.open, context.triggerId, dismissible]);
+  }, [context, dismissible]);
 
   if (!mounted) return null;
 

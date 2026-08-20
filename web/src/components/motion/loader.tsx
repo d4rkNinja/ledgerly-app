@@ -236,24 +236,34 @@ const MORPH_SCALE = [1, 1, 0.88, 0.88, 1, 1, 0.88, 0.88, 1, 1, 1];
 
 function Morph({ size, speed, reduce }: PartProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img">
+    <motion.svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      role="img"
+      animate={
+        reduce
+          ? { opacity: [1, 0.4, 1] }
+          : { rotate: MORPH_ROT, scale: MORPH_SCALE }
+      }
+      transition={
+        reduce
+          ? { duration: 1.4, ease: EASE_IN_OUT, repeat: Infinity }
+          : { duration: speed * 5, ease: EASE_IN_OUT, repeat: Infinity }
+      }
+    >
       <title>Loading</title>
       <motion.path
         fill="currentColor"
         d={MORPH_PATHS[0]}
-        style={{ transformBox: "fill-box", transformOrigin: "center" }}
-        animate={
-          reduce
-            ? { opacity: [1, 0.4, 1] }
-            : { d: MORPH_SEQ, rotate: MORPH_ROT, scale: MORPH_SCALE }
-        }
+        animate={reduce ? undefined : { d: MORPH_SEQ }}
         transition={
           reduce
-            ? { duration: 1.4, ease: EASE_IN_OUT, repeat: Infinity }
+            ? undefined
             : { duration: speed * 5, ease: EASE_IN_OUT, repeat: Infinity }
         }
       />
-    </svg>
+    </motion.svg>
   );
 }
 
@@ -358,14 +368,14 @@ function Metaballs({ size, speed, reduce }: PartProps) {
           r="15"
           animate={reduce ? { opacity: [0.4, 1, 0.4] } : { cx: [30, 70, 30] }}
           transition={{ duration: speed * 1.6, ease: EASE_IN_OUT, repeat: Infinity }}
-          cx={reduce ? 40 : undefined}
+          cx={reduce ? 40 : 30}
         />
         <motion.circle
           cy="50"
           r="15"
           animate={reduce ? { opacity: [0.4, 1, 0.4] } : { cx: [70, 30, 70] }}
           transition={{ duration: speed * 1.6, ease: EASE_IN_OUT, repeat: Infinity }}
-          cx={reduce ? 60 : undefined}
+          cx={reduce ? 60 : 70}
         />
       </g>
     </svg>

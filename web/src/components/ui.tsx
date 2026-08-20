@@ -46,6 +46,7 @@ import { useMediaQuery } from '@/lib/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 
 type FieldControlAria = {
+  'aria-label'?: string
   'aria-describedby'?: string
   'aria-invalid'?: boolean | 'true' | 'false'
   'aria-labelledby'?: string
@@ -128,6 +129,11 @@ function enhanceFieldControl(
 ): { controlId?: string; node: ReactNode } {
   let controlId: string | undefined
 
+  const labelledBy = (props: FieldControlAria) => {
+    if (props['aria-label']?.trim()) return props['aria-labelledby']
+    return [props['aria-labelledby'], labelId].filter(Boolean).join(' ') || undefined
+  }
+
   const enhanceNode = (candidate: ReactNode): ReactNode => {
     if (
       isValidElement<FieldControlAria>(candidate) &&
@@ -140,10 +146,7 @@ function enhanceFieldControl(
       return cloneElement(candidate, {
         id: controlId,
         'aria-invalid': error ? true : candidate.props['aria-invalid'],
-        'aria-labelledby':
-          [candidate.props['aria-labelledby'], labelId]
-            .filter(Boolean)
-            .join(' ') || undefined,
+        'aria-labelledby': labelledBy(candidate.props),
         'aria-describedby':
           [
             candidate.props['aria-describedby'],
@@ -155,6 +158,17 @@ function enhanceFieldControl(
     }
 
     if (!isFieldControlElement(candidate)) {
+      if (
+        isValidElement<FieldControlAria>(candidate) &&
+        typeof candidate.type === 'string' &&
+        candidate.props.children
+      ) {
+        return cloneElement(
+          candidate,
+          undefined,
+          Children.map(candidate.props.children, enhanceNode),
+        )
+      }
       return candidate
     }
 
@@ -179,10 +193,7 @@ function enhanceFieldControl(
       const controlProps = {
         id: isLabelTarget ? controlId : elementProps.id,
         'aria-invalid': error ? true : elementProps['aria-invalid'],
-        'aria-labelledby':
-          [elementProps['aria-labelledby'], labelId]
-            .filter(Boolean)
-            .join(' ') || undefined,
+        'aria-labelledby': labelledBy(elementProps),
         'aria-describedby':
           [
             elementProps['aria-describedby'],

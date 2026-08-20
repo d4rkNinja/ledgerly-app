@@ -3134,7 +3134,7 @@ textarea {
   font-size: 0.78rem;
 }
 
-.help-grid button {
+.help-grid article > a {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -3144,6 +3144,31 @@ textarea {
   color: var(--accent);
   font-size: 0.78rem;
   font-weight: 650;
+  text-decoration: none;
+}
+
+.help-search-empty {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-height: 12rem;
+  align-content: center;
+  padding: 1.5rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-card);
+  color: var(--ink-subtle);
+  text-align: center;
+}
+
+.help-search-empty svg {
+  width: 2rem;
+  height: 2rem;
+  color: var(--accent);
+}
+
+.help-search-empty strong {
+  color: var(--ink);
 }
 
 .support-contact {
@@ -5091,7 +5116,7 @@ main[tabindex="-1"]:focus {
 .settings-nav a,
 .section-heading-row > a,
 .back-link,
-.help-grid button,
+.help-grid article > a,
 .segmented-control button {
   min-height: var(--target-min);
 }
@@ -5760,7 +5785,7 @@ main[tabindex="-1"]:focus {
 
   .quick-actions a:hover,
   .add-account-card:not(:disabled):hover,
-  .help-grid article:has(button:not(:disabled)):hover {
+  .help-grid article:has(a[href]):hover {
     border-color: var(--line-strong);
     box-shadow: var(--shadow-surface-hover);
     transform: translateY(-2px);
@@ -8157,19 +8182,18 @@ body::before {
 
   .settings-nav {
     position: static;
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: inline mandatory;
-    scrollbar-width: none;
-  }
-
-  .settings-nav::-webkit-scrollbar {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    overflow: visible;
   }
 
   .settings-nav a {
-    flex: 0 0 auto;
-    scroll-snap-align: start;
+    min-width: 0;
+    min-height: 3.25rem;
+    padding: 0.65rem;
+    line-height: 1.2;
+    text-wrap: balance;
   }
 
   .settings-content > section > .settings-section-heading,
@@ -8368,6 +8392,34 @@ body::before {
   border: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
   border-radius: var(--radius-control);
   font-size: var(--text-sm);
+}
+
+.auth-boundary-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--warning) 25%, var(--line));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-raised));
+  color: var(--ink-subtle);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.auth-boundary-notice > svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.1rem;
+  color: var(--warning);
+}
+
+.auth-boundary-notice strong {
+  color: var(--ink);
+}
+
+.auth-boundary-notice p {
+  margin: 0.3rem 0 0;
 }
 
 /* Selects, popovers, calendars, and reusable pickers */
@@ -9118,5 +9170,140 @@ body::before {
     outline: var(--focus-width) solid Highlight;
     outline-offset: 3px;
     box-shadow: none;
+  }
+}
+
+/*
+ * Mobile-first layout contract.
+ *
+ * Component appearance is defined above. This final cascade makes a
+ * single-column phone layout the default and adds space only as the viewport
+ * grows, preventing later desktop composition changes from breaking phones.
+ */
+.page-header,
+.accounts-page .account-grid,
+.directory-page .directory-grid,
+.planning-page :is(.budget-detail-grid, .goal-grid),
+.help-page .help-grid,
+.bills-page > .surface-section,
+.analytics-page .insight-hero,
+.analytics-page .insight-grid,
+.settings-layout,
+.settings-content > section,
+.welcome-layout,
+.sign-in-layout,
+.welcome-proof,
+.collaboration-page .family-summary,
+.collaboration-page .member-directory,
+.office-page .office-metrics,
+.more-page > .surface-section:not(.share-center) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.accounts-page .account-card,
+.accounts-page .add-account-card,
+.directory-page .directory-grid > *,
+.planning-page :is(.budget-detail, .goal-card),
+.help-page .help-grid article {
+  grid-column: 1;
+}
+
+.settings-content > section > .settings-section-heading,
+.settings-content > section > :not(.settings-section-heading) {
+  grid-column: 1;
+  grid-row: auto;
+}
+
+.settings-content > section > .settings-section-heading {
+  border-right: 0;
+}
+
+@media (min-width: 681px) {
+  .page-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .accounts-page .account-grid,
+  .directory-page .directory-grid,
+  .planning-page :is(.budget-detail-grid, .goal-grid),
+  .help-page .help-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .accounts-page .account-card,
+  .accounts-page .add-account-card,
+  .directory-page .directory-grid > *,
+  .planning-page :is(.budget-detail, .goal-card),
+  .help-page .help-grid article {
+    grid-column: span 6;
+  }
+
+  .settings-layout {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    position: sticky;
+    top: calc(88px + var(--safe-top));
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
+  }
+
+  .collaboration-page .family-summary,
+  .collaboration-page .member-directory,
+  .office-page .office-metrics,
+  .more-page > .surface-section:not(.share-center) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 981px) {
+  .bills-page > .surface-section {
+    grid-template-columns: minmax(16rem, 0.36fr) minmax(0, 0.64fr);
+  }
+
+  .analytics-page .insight-hero {
+    grid-template-columns: minmax(15rem, 0.78fr) minmax(0, 1.22fr);
+  }
+
+  .analytics-page .insight-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
+  }
+
+  .welcome-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(22rem, 0.65fr);
+  }
+
+  .sign-in-layout {
+    grid-template-columns: minmax(21rem, 0.82fr) minmax(0, 1.18fr);
+  }
+
+  .welcome-proof {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .office-page .office-metrics {
+    grid-template-columns: 1.25fr 0.85fr 0.9fr;
+  }
+}
+
+@media (min-width: 1181px) {
+  .settings-content > section {
+    grid-template-columns: minmax(12rem, 0.36fr) minmax(0, 0.64fr);
+  }
+
+  .settings-content > section > .settings-section-heading {
+    grid-column: 1;
+    grid-row: 1 / span 20;
+    border-right: 1px solid var(--line);
+  }
+
+  .settings-content > section > :not(.settings-section-heading) {
+    grid-column: 2;
+  }
+
+  .collaboration-page .family-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
