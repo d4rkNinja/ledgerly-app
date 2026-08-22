@@ -34,6 +34,9 @@ const (
 	savedTransactionNamesCollection = "saved_transaction_names"
 	transactionCategoriesCollection = "transaction_categories"
 	transactionSequencesCollection  = "transaction_sequences"
+	importSessionsCollection        = "import_sessions"
+	automationRulesCollection       = "automation_rules"
+	accountReconciliationsCollection = "account_reconciliations"
 )
 
 // mongoIndexSpecifications is ordered so startup index creation and failures
@@ -245,6 +248,26 @@ func mongoIndexSpecifications() []collectionIndexes {
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "before.currency", Value: 1}, {Key: "before.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("period_revision_before_summary")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "after.currency", Value: 1}, {Key: "after.reporting_date", Value: 1}, {Key: "ledger_version", Value: 1}, {Key: "_id", Value: 1}}, Options: options.Index().SetName("period_revision_after_summary")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "entity_type", Value: 1}, {Key: "entity_id", Value: 1}, {Key: "ledger_version", Value: 1}}, Options: options.Index().SetName("transaction_revision_history")},
+			},
+		},
+		{
+			collection: importSessionsCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "status", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_import_status")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "account_id", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_import_account_history")},
+			},
+		},
+		{
+			collection: automationRulesCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "enabled", Value: 1}, {Key: "priority", Value: 1}}, Options: options.Index().SetName("workspace_enabled_rule_order")},
+			},
+		},
+		{
+			collection: accountReconciliationsCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "statement_date", Value: -1}}, Options: options.Index().SetName("workspace_reconciliation_history")},
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "difference_minor", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_reconciliation_differences")},
 			},
 		},
 	}

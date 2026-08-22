@@ -112,6 +112,11 @@ export interface Transaction {
 	  description?: string
 	  contactId?: string
 	  contact?: ContactSummary
+  /** Provenance signals. True when this entry came from a statement import. */
+  imported?: boolean
+  /** True when a reconciliation matched this entry to a bank statement line. */
+  cleared?: boolean
+  automation?: { ruleName: string; changes: { field: string; from?: string; to?: string }[] }[]
 }
 
 export interface ContactSummary { id: string; name: string; phone?: string; email?: string }

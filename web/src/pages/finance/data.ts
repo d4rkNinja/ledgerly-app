@@ -175,6 +175,22 @@ export function normalizeFinanceData<T>(key: string, response: unknown): T {
 		description: transaction.description ? String(transaction.description) : undefined,
 		contactId: transaction.contactId ? String(transaction.contactId) : undefined,
 		contact: transaction.contact && typeof transaction.contact === 'object' ? transaction.contact : undefined,
+        imported: transaction.imported === true || undefined,
+        cleared: transaction.cleared === true || undefined,
+        automation: Array.isArray(transaction.automation)
+          ? transaction.automation
+              .filter(isRecord)
+              .map((record) => ({
+                ruleName: String(record.ruleName ?? 'Rule'),
+                changes: Array.isArray(record.changes)
+                  ? record.changes.filter(isRecord).map((change) => ({
+                      field: String(change.field ?? ''),
+                      ...(change.from ? { from: String(change.from) } : {}),
+                      to: change.to == null ? undefined : String(change.to),
+                    }))
+                  : [],
+              }))
+          : undefined,
       }
     }) as T
   }

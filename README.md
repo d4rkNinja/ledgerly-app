@@ -63,10 +63,33 @@ and known boundaries directly.
 - Workspace-scoped numeric transaction IDs with independent expense, income,
   transfer, and split sequences; automatic allocation, manual IDs, and
   configurable digit widths.
-- Workspace-managed categories for every transaction mode, including default
-  seeding, rename, enable/disable, safe replacement, and explicit ordering.
+- Statement import and reconciliation: CSV upload with configurable column
+  mapping (date formats, signed/expense-first/debit-credit amounts), a
+  server-side review session that detects exact duplicates, likely duplicates,
+  and probable matches against the existing ledger; per-row or bulk
+  create/link/ignore decisions; an atomic commit whose created rows carry
+  import provenance, cleared/reconciled state, and deterministic per-row
+  idempotency keys. Completed reconciliations are stored as immutable evidence
+  of the ledger balance at a statement date, with explicit acknowledgment for
+  unresolved differences.
+- A user-configurable automation rules engine: AND-combined conditions (type,
+  account, description, contact, amount range, category, import source) drive
+  actions (category, contact, rename, account move, tag, privacy) in priority
+  order — applied automatically during statement-import commits and transaction
+  creation, testable against history without mutation, and manually runnable.
+  Every automated change is recorded on the transaction as explainable
+  provenance; account moves never run on existing rows so balances cannot be
+  silently moved.
+- A deterministic cash-flow forecast: projects current balances forward across
+  7/30/90/custom-day horizons from recurring bills, a trailing-90-day typical
+  daily spending baseline, and user-planned one-off items. Scenario controls do
+  not touch the ledger; the lowest projected balance, first negative date, and
+  every event's source are reported so no number is unexplained.
+- A workspace "attention" feed that surfaces overdue bills, past-due goals,
+  budget pressure, pending approvals, draft imports, and unresolved
+  reconciliation differences with deep links to where action can be taken.
 - User-selected transaction occurrence dates that feed monthly dashboards,
-  daily cash-flow views, filters, and reports.
+  daily cash-flow views, filters, forecast, and reports.
 - Searchable reusable transaction names that can be created, renamed, and
   deleted for faster, consistent entry.
 - Accounts and vault-backed balances, opening balances, account editing,

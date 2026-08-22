@@ -27,6 +27,9 @@ var workspaceOwnedCollections = []string{
 	"period_reviews",
 	"audit_events",
 	"idempotency",
+	"import_sessions",
+	"automation_rules",
+	"account_reconciliations",
 	"workspaces",
 }
 

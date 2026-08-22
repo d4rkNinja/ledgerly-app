@@ -124,6 +124,21 @@ const InvitationPage = lazy(() =>
     default: module.InvitationPage,
   })),
 )
+const ImportPage = lazy(() =>
+  import('@/pages/finance/imports').then((module) => ({
+    default: module.ImportPage,
+  })),
+)
+const RulesPage = lazy(() =>
+  import('@/pages/finance/rules').then((module) => ({
+    default: module.RulesPage,
+  })),
+)
+const ForecastPage = lazy(() =>
+  import('@/pages/finance/forecast').then((module) => ({
+    default: module.ForecastPage,
+  })),
+)
 
 const routeTitles: Record<string, string> = {
   '/': 'Money clarity',
@@ -147,6 +162,9 @@ const routeTitles: Record<string, string> = {
   '/app/more': 'More',
   '/app/settings': 'Settings',
   '/app/help': 'Help and support',
+  '/app/import': 'Statement import',
+  '/app/automation': 'Automation',
+  '/app/forecast': 'Forecast',
 }
 
 function DocumentTitle() {
@@ -305,6 +323,9 @@ export default function App() {
             <Route path="more" element={<MorePage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="help" element={<HelpPage />} />
+            <Route path="import" element={<ImportPage />} />
+            <Route path="automation" element={<RulesPage />} />
+            <Route path="forecast" element={<ForecastPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

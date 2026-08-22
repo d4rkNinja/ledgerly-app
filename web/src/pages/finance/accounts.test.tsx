@@ -28,6 +28,19 @@ class ResizeObserverStub implements ResizeObserver {
   disconnect() {}
 }
 
+class IntersectionObserverStub implements IntersectionObserver {
+  readonly root = null
+  readonly rootMargin = '0px'
+  readonly thresholds = [0]
+
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return []
+  }
+}
+
 const account: Account = {
   id: 'account-1',
   name: 'Household savings',
@@ -131,6 +144,7 @@ describe('bank account management', () => {
     apiMocks.patch.mockResolvedValue({ id: account.id })
     apiMocks.delete.mockResolvedValue(undefined)
     vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverStub)
     vi.stubGlobal(
       'matchMedia',
       vi.fn(() => ({

@@ -248,6 +248,34 @@ type Transaction struct {
 	OccurredAt time.Time `bson:"occurred_at" json:"occurredAt"`
 	CreatedAt  time.Time `bson:"created_at" json:"createdAt"`
 	UpdatedAt  time.Time `bson:"updated_at" json:"updatedAt"`
+
+	// Provenance and reconciliation state. These are storage fields; the
+	// public JSON contract exposes friendly signals (imported, cleared,
+	// automation) without internal identifiers.
+	Source          string              `bson:"source,omitempty" json:"-"`
+	ImportSessionID string              `bson:"import_session_id,omitempty" json:"-"`
+	ClearedAt       *time.Time          `bson:"cleared_at,omitempty" json:"-"`
+	Automation      []AppliedRuleRecord `bson:"automation,omitempty" json:"-"`
+}
+
+// TransactionSourceManual marks records created directly in Ledgerly.
+const (
+	TransactionSourceManual  = "manual"
+	TransactionSourceImport  = "import"
+)
+
+// PublicAutomationChange is the client-facing explanation of one automated
+// field change.
+type PublicAutomationChange struct {
+	Field string `json:"field"`
+	From  string `json:"from,omitempty"`
+	To    string `json:"to,omitempty"`
+}
+
+// PublicAutomationRecord names the rule that changed a transaction.
+type PublicAutomationRecord struct {
+	RuleName string                   `json:"ruleName"`
+	Changes  []PublicAutomationChange `json:"changes"`
 }
 
 // MarshalJSON is the public transaction contract. It prevents collaborator
@@ -255,12 +283,28 @@ type Transaction struct {
 // while retaining a minimal signal for a UI to prevent unsafe amount edits.
 func (transaction Transaction) MarshalJSON() ([]byte, error) {
 	type publicTransaction Transaction
+	var automation []PublicAutomationRecord
+	for _, record := range transaction.Automation {
+		public := PublicAutomationRecord{RuleName: record.RuleName}
+		for _, change := range record.Changes {
+			public.Changes = append(public.Changes, PublicAutomationChange{
+				Field: change.Field, From: change.From, To: change.To,
+			})
+		}
+		automation = append(automation, public)
+	}
 	return json.Marshal(struct {
 		publicTransaction
-		HasSplits bool `json:"hasSplits,omitempty"`
+		HasSplits  bool                       `json:"hasSplits,omitempty"`
+		Imported   bool                       `json:"imported,omitempty"`
+		Cleared    bool                       `json:"cleared,omitempty"`
+		Automation []PublicAutomationRecord   `json:"automation,omitempty"`
 	}{
 		publicTransaction: publicTransaction(transaction),
 		HasSplits:         len(transaction.Splits) > 0,
+		Imported:          transaction.Source == TransactionSourceImport,
+		Cleared:           transaction.ClearedAt != nil,
+		Automation:        automation,
 	})
 }
 
