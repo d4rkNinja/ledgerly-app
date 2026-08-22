@@ -1,9 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import {
+  ArrowRight,
+  FileChartColumn,
+  FileText,
   LoaderCircle,
   Landmark,
+  Plus,
   ReceiptText,
   Search,
+  TrendingUp,
   WalletCards,
   X,
   type LucideIcon,
@@ -392,6 +397,70 @@ export function WorkspaceSearch({
     return Array.from(groups, ([label, options]) => ({ label, options }))
   }, [normalizedQuery, pages])
 
+  const quickActionGroups = useMemo<SearchGroup[]>(() => {
+    const actions = [
+      {
+        id: 'add-expense',
+        label: 'Add an expense',
+        keywords: ['expense', 'spend', 'record', 'new entry'],
+        icon: Plus,
+        to: '/app/transactions?add=expense',
+      },
+      {
+        id: 'add-income',
+        label: 'Add income',
+        keywords: ['income', 'salary', 'received', 'credit'],
+        icon: TrendingUp,
+        to: '/app/transactions?add=income',
+      },
+      {
+        id: 'transfer',
+        label: 'Transfer between accounts',
+        keywords: ['transfer', 'move money'],
+        icon: ArrowRight,
+        to: '/app/transactions?add=transfer',
+      },
+      {
+        id: 'import-statement',
+        label: 'Import a statement',
+        keywords: ['import', 'csv', 'bank file'],
+        icon: FileText,
+        to: '/app/import',
+      },
+      {
+        id: 'open-forecast',
+        label: 'Open forecast',
+        keywords: ['forecast', 'projection', 'upcoming'],
+        icon: TrendingUp,
+        to: '/app/forecast',
+      },
+      {
+        id: 'this-month-report',
+        label: "Open this month's report",
+        keywords: ['report', 'summary', 'month'],
+        icon: FileChartColumn,
+        to: '/app/insights',
+      },
+    ]
+    const matching = actions.filter(
+      (action) =>
+        fuzzyMatch(normalizedQuery, action.label) ||
+        action.keywords.some((keyword) => fuzzyMatch(normalizedQuery, keyword)),
+    )
+    if (!matching.length) return []
+    return [
+      {
+        label: 'Quick actions',
+        options: matching.map((action) => ({
+          id: `action-${action.id}`,
+          label: action.label,
+          icon: action.icon,
+          onSelect: () => onNavigate(action.to),
+        })),
+      },
+    ]
+  }, [normalizedQuery, onNavigate])
+
   const response =
     currentDebouncedQuery && searchQuery.data
       ? searchQuery.data
@@ -442,8 +511,8 @@ export function WorkspaceSearch({
   ])
 
   const groups = useMemo(
-    () => [...workspaceGroups, ...pageGroups],
-    [pageGroups, workspaceGroups],
+    () => [...quickActionGroups, ...workspaceGroups, ...pageGroups],
+    [pageGroups, quickActionGroups, workspaceGroups],
   )
   const renderedOptions = useMemo(
     () => groups.flatMap((group) => group.options),

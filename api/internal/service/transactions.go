@@ -156,6 +156,16 @@ func (s *FinanceService) CreateTransaction(ctx context.Context, workspaceID, act
 		Privacy:    privacy,
 		OccurredAt: occurredAt, CreatedAt: now, UpdatedAt: now,
 	}
+	if automationRules, rulesErr := s.listEnabledAutomationRulesOrdered(ctx, workspaceID); rulesErr == nil && len(automationRules) > 0 {
+		if applyErr := s.applyAutomationRulesToTransaction(ctx, workspaceID, automationRules, tx); applyErr != nil {
+			return nil, applyErr
+		}
+	}
+	if tx.Category != category {
+		if tx.Category, err = s.validateTransactionCategory(ctx, workspaceID, kind, tx.Category, input.Splits, nil); err != nil {
+			return nil, err
+		}
+	}
 	audit := newAuditEvent(
 		workspaceID,
 		actorID,

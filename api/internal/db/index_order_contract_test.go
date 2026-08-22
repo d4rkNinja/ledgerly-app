@@ -147,6 +147,24 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 				"transaction_revision_history",
 			},
 		},
+		{
+			collection: "import_sessions",
+			indexes: []string{
+				"workspace_import_status",
+				"workspace_import_account_history",
+			},
+		},
+		{
+			collection: "automation_rules",
+			indexes:    []string{"workspace_enabled_rule_order"},
+		},
+		{
+			collection: "account_reconciliations",
+			indexes: []string{
+				"workspace_reconciliation_history",
+				"workspace_reconciliation_differences",
+			},
+		},
 	}
 
 	specifications := mongoIndexSpecifications()

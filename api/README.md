@@ -126,6 +126,37 @@ All paths are under `/api/v1`. Protected routes require `Authorization: Bearer <
 | PATCH | `/notifications/{notificationID}/read` | Mark one owned notification as read |
 | PATCH | `/notifications/read-all` | Mark all current user's unread notifications as read |
 
+| GET | `/workspaces/{workspaceID}/notifications` | Current user's notifications |
+| GET | `/workspaces/{workspaceID}/notifications/unread-count` | Current user's unread notification count |
+| PATCH | `/workspaces/{workspaceID}/notifications/{notificationID}/read` | Mark one owned notification as read |
+| PATCH | `/workspaces/{workspaceID}/notifications/read-all` | Mark all current user's unread notifications as read |
+
+Statement import, automation rules, forecasting, and reconciliation extend the
+finance core:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST/GET | `/workspaces/{workspaceID}/imports` | Create a statement-import review session or list sessions (`?status=draft\|completed\|cancelled`) |
+| GET/PATCH/DELETE | `/workspaces/{workspaceID}/imports/{importSessionID}` | Read, re-parse (PATCH with updated mapping/CSV), or discard a draft session |
+| POST | `/workspaces/{workspaceID}/imports/{importSessionID}/resolve` | Bulk row decisions: `{resolutions: [{index, action: create\|ignore\|link, transactionId?}]}`; link requires edit rights and an unreconciled target |
+| POST | `/workspaces/{workspaceID}/imports/{importSessionID}/commit` | Commit inside one MongoDB transaction (`Idempotency-Key` required); created rows carry deterministic per-row idempotency keys, provenance, cleared state, and rule application. Retries after completion return 409 |
+| GET/POST | `/workspaces/{workspaceID}/automation-rules` | List ordered rules (priority asc) or create one (`edit_all_transactions`) |
+| PATCH/DELETE | `/workspaces/{workspaceID}/automation-rules/{ruleID}` | Edit or delete a rule |
+| POST | `/workspaces/{workspaceID}/automation-rule-previews` | Dry-run a draft rule against the last 90 days: match count plus up to 10 samples with planned changes |
+| POST | `/workspaces/{workspaceID}/automation-rule-runs` | Manually run enabled rules over explicit transaction IDs; balance-affecting account moves are skipped so manual runs never move money; every change writes revision evidence |
+| POST | `/workspaces/{workspaceID}/forecast` | Deterministic cash-flow projection: `{days ≤ 365, includeBills, includeBaseline, includeIncome, oneOff[]}` — recurring-bill expansion, trailing-90-day baseline averages, lowest balance, first negative date, and assumption notes |
+| GET | `/workspaces/{workspaceID}/attention` | Actionable signals: overdue bills, past-due goals, draft imports, unresolved reconciliation differences, pending claims, budget pressure |
+| GET | `/workspaces/{workspaceID}/accounts/{accountID}/reconciliation-preview?statementDate=&statementBalanceMinor=` | Compare a statement's closing balance with the ledger as of that date |
+| POST | `/workspaces/{workspaceID}/accounts/{accountID}/reconciliations` | Record immutable evidence (`view_balances`; completion requires `edit_all_transactions`). A non-zero difference must pass `acknowledgeDifference: true` |
+| GET | `/workspaces/{workspaceID}/reconciliations?accountId=` | Completed reconciliation history, newest first |
+
+Automation rules apply at transaction creation and statement-import commit time
+with AND-condition semantics, one pass in priority order, no looping, and
+explainable `automation` records on each affected transaction (public payloads
+expose friendly names only — never internal identifiers). Transactions expose
+`imported`, `cleared`, and `automation` provenance flags; statement imports set
+them without leaking session IDs.
+
 Transaction creation requires an `Idempotency-Key` header (8–128 characters).
 A retry with the same key and request resolves to the first committed response,
 including when the server supplied an omitted `occurredAt`. Each workspace has

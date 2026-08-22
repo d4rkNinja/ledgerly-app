@@ -12,6 +12,7 @@ import {
   useReducedMotion,
 } from 'motion/react'
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useApp } from '@/app/app-state'
 import {
   accounts as demoAccounts,
@@ -49,6 +50,7 @@ import {
   useFinanceData,
 } from './data'
 import { RecordActionDrawer } from './record-action-drawer'
+import { ReconciliationSection } from './reconciliation'
 
 function AccountGlyph({ account }: { account: Account }) {
   if (account.icon === 'credit-card' || account.kind === 'credit_card') {
@@ -124,12 +126,17 @@ export function AccountsPage() {
         title="Accounts"
         description="Balances stay separated by currency and owner."
         actions={
-          canCreateAccount ? (
-            <Button onClick={() => setDialogOpen(true)}>
-              <Plus aria-hidden="true" />
-              Add account
-            </Button>
-          ) : undefined
+          <>
+            <Link className="button button-secondary" to="/app/import">
+              Import statement
+            </Link>
+            {canCreateAccount ? (
+              <Button onClick={() => setDialogOpen(true)}>
+                <Plus aria-hidden="true" />
+                Add account
+              </Button>
+            ) : null}
+          </>
         }
       />
       {!canCreateAccount ? (
@@ -248,6 +255,7 @@ export function AccountsPage() {
         open={Boolean(editingAccount)}
         onClose={() => setEditingAccount(null)}
       />
+      {!demoMode ? <ReconciliationSection accounts={items} /> : null}
     </PageFrame>
   )
 }

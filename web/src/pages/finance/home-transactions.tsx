@@ -53,6 +53,14 @@ import {
   moneyInputSchema,
 } from '../finance-writes/shared'
 import { useApp } from '@/app/app-state'
+import { AttentionStrip } from '@/components/attention-strip'
+import {
+  orderCategoriesByRecency,
+  rememberAccount,
+  rememberCategory,
+  rememberedAccountId,
+  rememberedCategory,
+} from '@/lib/transaction-memory'
 import { CurrencySelect } from '@/components/currency-select'
 import {
   categoriesForTransactionMode,
@@ -930,6 +938,7 @@ export function HomePage() {
           onChange={updatePeriod}
           onClear={clearPeriod}
         />
+        <AttentionStrip />
         <PeriodReviewCard
           workspace={workspace}
           demoMode={demoMode}
@@ -964,6 +973,7 @@ export function HomePage() {
         onChange={updatePeriod}
         onClear={clearPeriod}
       />
+      <AttentionStrip />
       <PeriodReviewCard
         workspace={workspace}
         demoMode={demoMode}
@@ -1914,13 +1924,20 @@ export function TransactionDialog({
   useEffect(() => {
     setMode(initialMode)
     if (open) {
+      const rememberedAccount =
+        availableAccounts.find(
+          (account) => account.id === rememberedAccountId() && account.status !== 'inactive',
+        )?.id ?? initialAccountId
+      const rememberedModeCategory = demoMode
+        ? ''
+        : rememberedCategory(initialMode) ?? ''
       setValues({
         merchant: '',
         amount: '',
         category: demoMode
           ? categoriesForTransactionMode(initialMode)[0] ?? ''
-          : '',
-        accountId: initialAccountId,
+          : rememberedModeCategory,
+        accountId: rememberedAccount,
         occurredAt: todayDateOnly(),
         note: '',
 		description: '',
@@ -1938,7 +1955,14 @@ export function TransactionDialog({
       window.clearTimeout(closeTimer.current)
       closeTimer.current = null
     }
-  }, [demoMode, initialAccountId, initialMode, open, preferredCurrency])
+  }, [
+    availableAccounts,
+    demoMode,
+    initialAccountId,
+    initialMode,
+    open,
+    preferredCurrency,
+  ])
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -1981,9 +2005,12 @@ export function TransactionDialog({
   const sequencesQuery = useTransactionSequences(open)
   const categoryNames = useMemo(
     () =>
-      demoMode
-        ? [...categoriesForTransactionMode(mode)]
-        : selectableTransactionCategoryNames(categoriesQuery.data ?? []),
+      orderCategoriesByRecency(
+        mode,
+        demoMode
+          ? [...categoriesForTransactionMode(mode)]
+          : selectableTransactionCategoryNames(categoriesQuery.data ?? []),
+      ),
     [categoriesQuery.data, demoMode, mode],
   )
   const modeSequence = sequencesQuery.data?.find(
@@ -2079,7 +2106,11 @@ export function TransactionDialog({
         },
       )
     },
-    onSuccess: (transaction) => {
+    onSuccess: (transaction, variables) => {
+      rememberAccount(variables.body.accountId)
+      if (variables.transactionType !== 'transfer') {
+        rememberCategory(variables.transactionType, variables.body.category)
+      }
       void Promise.all([
         queryClient.invalidateQueries({
           queryKey: ['transactions', workspace.id],
@@ -3520,6 +3551,14 @@ export function TransactionsPage() {
           { label: 'Date', value: formatDate(selectedTransaction.occurredAt) },
           { label: 'Category', value: selectedTransaction.category || 'Uncategorised' },
           { label: 'Status', value: friendlyLabel(selectedTransaction.status) },
+          ...(selectedTransaction.imported ? [{ label: 'Source', value: 'Statement import' }] : []),
+          ...(selectedTransaction.cleared ? [{ label: 'Reconciled', value: 'Matched to a bank statement' }] : []),
+          ...(selectedTransaction.automation?.length ? [{
+            label: 'Automated by',
+            value: selectedTransaction.automation
+              .map((record) => `${record.ruleName} (${record.changes.map((change) => `${change.field} → ${change.to ?? ''}`).join(', ')})`)
+              .join(' · '),
+          }] : []),
           { label: 'Created by', value: selectedTransaction.creator?.name ?? 'Creator unavailable' },
           ...(selectedTransaction.note ? [{ label: 'Note', value: selectedTransaction.note }] : []),
 		  ...(selectedTransaction.description ? [{ label: 'Description', value: selectedTransaction.description }] : []),
