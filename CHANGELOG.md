@@ -8,6 +8,12 @@ release is cut.
 
 ### Added
 
+- **Docker deployment stack.** A root Compose file now runs the whole
+  application — MongoDB as a single-node replica set, the API as a distroless
+  container, and the web client served by an nginx proxy that forwards
+  `/api/v1` same-origin. New `api/Dockerfile` and `web/Dockerfile` builds are
+  multi-stage; the README documents self-hosting and what a hardened install
+  must still provide.
 - **Insights period comparison.** The live Insights page now compares the
   selected period with the previous equivalent period: income, spending, and
   net cash flow each show an up/down percentage badge (spending reductions

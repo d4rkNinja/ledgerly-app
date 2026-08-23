@@ -1,0 +1,66 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_DATABASE: moneytracking
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Initiates the single-node replica set against the service DNS name so the
+  # API container can resolve the set member as mongo:27017.
+  mongo-init:
+    image: mongo:7
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: "no"
+    command:
+      - mongosh
+      - --host
+      - mongo:27017
+      - --quiet
+      - --eval
+      - |
+        try {
+          rs.status()
+        } catch (error) {
+          rs.initiate({_id: "rs0", members: [{_id: 0, host: "mongo:27017"}]})
+        }
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    environment:
+      APP_ENV: production
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      MONGO_URI: mongodb://mongo:27017/?replicaSet=rs0
+      MONGO_DB: ${MONGO_DB:-moneytracking}
+      # The stack's nginx proxy forwards /api/v1 to this service; trusting the
+      # private Docker bridge ranges lets the API honour X-Forwarded-For.
+      TRUSTED_PROXIES: 172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
+      CORS_ALLOWED_ORIGINS: ${LEDGERLY_PUBLIC_ORIGIN:-http://localhost:8088}
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${LEDGERLY_WEB_PORT:-8088}:8080"
+
+volumes:
+  mongo-data:
