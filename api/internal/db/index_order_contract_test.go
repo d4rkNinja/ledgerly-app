@@ -165,6 +165,10 @@ func TestMongoIndexCreationOrderIsStable(t *testing.T) {
 				"workspace_reconciliation_differences",
 			},
 		},
+		{
+			collection: "recurring_dismissals",
+			indexes:    []string{"workspace_recurring_dismissals"},
+		},
 	}
 
 	specifications := mongoIndexSpecifications()

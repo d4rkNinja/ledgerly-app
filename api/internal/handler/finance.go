@@ -417,6 +417,82 @@ func (a *API) Bills(w http.ResponseWriter, r *http.Request) {
 	a.writeItems(w, items, err)
 }
 
+func (a *API) CreateBill(w http.ResponseWriter, r *http.Request) {
+	var input service.BillInput
+	if !a.decode(w, r, &input) {
+		return
+	}
+	item, err := a.finance.CreateBill(r.Context(), workspaceID(r), currentUser(r).ID, input)
+	a.writeCreated(w, item, err)
+}
+
+func (a *API) UpdateBill(w http.ResponseWriter, r *http.Request) {
+	var input service.BillInput
+	if !a.decode(w, r, &input) {
+		return
+	}
+	item, err := a.finance.UpdateBill(
+		r.Context(),
+		workspaceID(r),
+		currentUser(r).ID,
+		chi.URLParam(r, "billID"),
+		input,
+	)
+	if err != nil {
+		a.serviceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, item)
+}
+
+func (a *API) DeleteBill(w http.ResponseWriter, r *http.Request) {
+	err := a.finance.DeleteBill(r.Context(), workspaceID(r), currentUser(r).ID, chi.URLParam(r, "billID"))
+	if err != nil {
+		a.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) RecurringSuggestions(w http.ResponseWriter, r *http.Request) {
+	items, err := a.finance.DetectRecurringSuggestions(r.Context(), workspaceID(r), currentUser(r).ID)
+	a.writeItems(w, items, err)
+}
+
+func (a *API) AcceptRecurringSuggestion(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Signature string `json:"signature"`
+	}
+	if !a.decode(w, r, &input) {
+		return
+	}
+	item, err := a.finance.AcceptRecurringSuggestion(
+		r.Context(),
+		workspaceID(r),
+		currentUser(r).ID,
+		input.Signature,
+	)
+	a.writeCreated(w, item, err)
+}
+
+func (a *API) DismissRecurringSuggestion(w http.ResponseWriter, r *http.Request) {
+	var input service.RecurringDismissInput
+	if !a.decode(w, r, &input) {
+		return
+	}
+	err := a.finance.DismissRecurringSuggestion(
+		r.Context(),
+		workspaceID(r),
+		currentUser(r).ID,
+		input.Signature,
+	)
+	if err != nil {
+		a.serviceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (a *API) CreateGoal(w http.ResponseWriter, r *http.Request) {
 	var input service.GoalInput
 	if !a.decode(w, r, &input) {

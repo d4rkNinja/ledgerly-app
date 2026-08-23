@@ -19,6 +19,7 @@ const (
 	PermDeleteAllTransactions = "delete_all_transactions"
 	PermManageBudgets         = "manage_budgets"
 	PermManageGoals           = "manage_goals"
+	PermManageBills           = "manage_bills"
 	PermSubmitExpenses        = "submit_expenses"
 	PermApproveExpenses       = "approve_expenses"
 	PermManageReimbursements  = "manage_reimbursements"
@@ -32,20 +33,20 @@ var RolePermissions = map[string][]string{
 		PermViewVault, PermCreateVault, PermEditVault, PermArchiveVault, PermViewBalances,
 		PermViewTransactions, PermCreateTransactions, PermEditOwnTransactions, PermEditAllTransactions,
 		PermDeleteOwnTransactions, PermDeleteAllTransactions, PermManageBudgets, PermManageGoals,
-		PermSubmitExpenses, PermApproveExpenses, PermManageReimbursements, PermExportData, PermViewAudit,
+		PermManageBills, PermSubmitExpenses, PermApproveExpenses, PermManageReimbursements, PermExportData, PermViewAudit,
 	},
 	"administrator": {
 		PermViewWorkspace, PermEditWorkspace, PermInviteMembers, PermRemoveMembers, PermManageRoles,
 		PermViewVault, PermCreateVault, PermEditVault, PermArchiveVault, PermViewBalances,
 		PermViewTransactions, PermCreateTransactions, PermEditOwnTransactions, PermEditAllTransactions,
 		PermDeleteOwnTransactions, PermDeleteAllTransactions,
-		PermManageBudgets, PermManageGoals, PermSubmitExpenses, PermApproveExpenses,
+		PermManageBudgets, PermManageGoals, PermManageBills, PermSubmitExpenses, PermApproveExpenses,
 		PermManageReimbursements, PermExportData, PermViewAudit,
 	},
 	"finance_manager": {
 		PermViewWorkspace, PermViewVault, PermCreateVault, PermEditVault, PermViewBalances,
 		PermViewTransactions, PermCreateTransactions, PermEditOwnTransactions, PermEditAllTransactions, PermManageBudgets,
-		PermManageGoals, PermSubmitExpenses, PermApproveExpenses, PermManageReimbursements,
+		PermManageGoals, PermManageBills, PermSubmitExpenses, PermApproveExpenses, PermManageReimbursements,
 		PermExportData, PermViewAudit,
 	},
 	"approver": {PermViewWorkspace, PermViewVault, PermViewBalances, PermViewTransactions, PermSubmitExpenses, PermApproveExpenses},
@@ -61,8 +62,9 @@ var knownPermissions = map[string]struct{}{
 	PermManageRoles: {}, PermViewVault: {}, PermCreateVault: {}, PermEditVault: {},
 	PermArchiveVault: {}, PermViewBalances: {}, PermViewTransactions: {}, PermCreateTransactions: {},
 	PermEditOwnTransactions: {}, PermEditAllTransactions: {}, PermDeleteOwnTransactions: {},
-	PermDeleteAllTransactions: {}, PermManageBudgets: {}, PermManageGoals: {}, PermSubmitExpenses: {},
-	PermApproveExpenses: {}, PermManageReimbursements: {}, PermExportData: {}, PermViewAudit: {},
+	PermDeleteAllTransactions: {}, PermManageBudgets: {}, PermManageGoals: {}, PermManageBills: {},
+	PermSubmitExpenses: {}, PermApproveExpenses: {}, PermManageReimbursements: {}, PermExportData: {},
+	PermViewAudit: {},
 }
 
 func IsKnownPermission(permission string) bool {

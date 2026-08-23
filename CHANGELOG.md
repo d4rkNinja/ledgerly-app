@@ -6,6 +6,27 @@ release is cut.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-23
+
+### Added
+
+- **Bill management.** Bills are no longer read-only: create recurring bills
+  manually (name, amount, frequency, next due date, autopay), edit them, or
+  stop tracking them. Deleting a bill deactivates it — history, reports, and
+  audit evidence stay intact.
+- **Recurring payment detection.** Ledgerly now scans the last 180 days of
+  your entries for patterns: at least three occurrences of a similar merchant
+  at a steady interval with one dominant amount (weekly, fortnightly,
+  monthly, quarterly, or yearly). Detected patterns appear on the Bills page
+  with their cadence and estimated next due date.
+- **Approval required.** Detection never writes anything by itself. You choose
+  "Add as bill" to turn a pattern into a tracked bill, or dismiss it forever.
+  Accepted bills remember which suggestion they came from, so renaming the
+  bill later does not resurrect the suggestion; already-tracked merchants are
+  never proposed twice.
+- A new `manage_bills` permission gates bill creation and editing
+  (owner/administrator/finance manager); members and viewers keep read access.
+
 ## [0.1.0] - 2026-08-23
 
 ### Added

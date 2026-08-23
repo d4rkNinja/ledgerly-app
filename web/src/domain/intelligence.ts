@@ -260,3 +260,36 @@ export interface AccountReconciliation {
   note?: string
   createdAt: string
 }
+
+export interface RecurringSuggestion {
+  signature: string
+  label: string
+  category?: string
+  direction: 'debit' | 'credit'
+  amountMinor: number
+  currency: string
+  frequency: string
+  occurrences: number
+  lastOccurredAt: string
+  nextDueEstimate: string
+}
+
+export type BillFrequency = 'daily' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'yearly'
+
+export const BILL_FREQUENCY_LABELS: Record<BillFrequency, string> = {
+  daily: 'Daily',
+  weekly: 'Weekly',
+  fortnightly: 'Every two weeks',
+  monthly: 'Monthly',
+  quarterly: 'Every three months',
+  yearly: 'Yearly',
+}
+
+export interface BillInputPayload {
+  name: string
+  amountMinor: number
+  currency: string
+  frequency: string
+  dueDate: string
+  autopay: boolean
+}

@@ -37,6 +37,7 @@ const (
 	importSessionsCollection        = "import_sessions"
 	automationRulesCollection       = "automation_rules"
 	accountReconciliationsCollection = "account_reconciliations"
+	recurringDismissalsCollection   = "recurring_dismissals"
 )
 
 // mongoIndexSpecifications is ordered so startup index creation and failures
@@ -268,6 +269,12 @@ func mongoIndexSpecifications() []collectionIndexes {
 			models: []mongo.IndexModel{
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "statement_date", Value: -1}}, Options: options.Index().SetName("workspace_reconciliation_history")},
 				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "difference_minor", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_reconciliation_differences")},
+			},
+		},
+		{
+			collection: recurringDismissalsCollection,
+			models: []mongo.IndexModel{
+				{Keys: bson.D{{Key: "workspace_id", Value: 1}, {Key: "created_at", Value: -1}}, Options: options.Index().SetName("workspace_recurring_dismissals")},
 			},
 		},
 	}

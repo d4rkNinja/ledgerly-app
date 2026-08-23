@@ -288,6 +288,7 @@ export function normalizeFinanceData<T>(key: string, response: unknown): T {
           currency: String(bill.currency ?? 'INR'),
         },
         autopay: Boolean(bill.autopay),
+        frequency: bill.frequency ? String(bill.frequency) : undefined,
       }
     }) as T
   }
