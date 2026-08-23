@@ -30,6 +30,7 @@ var workspaceOwnedCollections = []string{
 	"import_sessions",
 	"automation_rules",
 	"account_reconciliations",
+	"recurring_dismissals",
 	"workspaces",
 }
 

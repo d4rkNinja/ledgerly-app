@@ -110,7 +110,11 @@ All paths are under `/api/v1`. Protected routes require `Authorization: Bearer <
 | PATCH/DELETE | `/workspaces/{workspaceID}/transaction-categories/{categoryID}` | Update, disable, replace, or delete a category safely |
 | POST | `/workspaces/{workspaceID}/transaction-categories/reorder` | Persist the complete category order for one transaction type |
 | GET | `/workspaces/{workspaceID}/export.csv` | Export the authorized, filtered transaction result as CSV |
-| GET | `/workspaces/{workspaceID}/bills` | Visible bills due today through the next 30 UTC calendar days |
+| GET/POST | `/workspaces/{workspaceID}/bills` | Visible bills due today through the next 30 UTC calendar days, or create a recurring bill (`manage_bills`) |
+| PATCH/DELETE | `/workspaces/{workspaceID}/bills/{billID}` | Edit a bill or deactivate it softly (`manage_bills`); history and audit evidence are untouched |
+| GET | `/workspaces/{workspaceID}/recurring-suggestions` | Deterministic detection of likely recurring payments from the last 180 days (three-plus occurrences, steady interval, dominant amount); tracked bills and dismissed signatures are excluded |
+| POST | `/workspaces/{workspaceID}/recurring-suggestions/accept` | Approve one suggestion by signature — creates a real bill stamped with the pattern so later renames keep it suppressed |
+| POST | `/workspaces/{workspaceID}/recurring-suggestions/dismiss` | Hide one suggestion signature permanently for this workspace |
 | GET/POST | `/workspaces/{workspaceID}/budgets` | Budgets |
 | GET/POST | `/workspaces/{workspaceID}/goals` | Goals |
 | POST | `/workspaces/{workspaceID}/invitations` | Issue expiring invitation |

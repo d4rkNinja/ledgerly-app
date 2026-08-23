@@ -33,9 +33,15 @@ func TestBillsRouteIsRegisteredReadOnly(t *testing.T) {
 		t.Fatal("router does not expose route matching")
 	}
 
+	// Bills moved from read-only visibility to managed recurring rules:
+	// list/create on the collection, edit/delete per record.
 	got := allowedMethods(routes, "/api/v1/workspaces/workspace-a/bills")
-	if len(got) != 1 || got[0] != http.MethodGet {
-		t.Fatalf("allowed methods = %#v, want [GET]", got)
+	if len(got) != 2 || got[0] != http.MethodGet || got[1] != http.MethodPost {
+		t.Fatalf("allowed methods = %#v, want [GET POST]", got)
+	}
+	perBill := allowedMethods(routes, "/api/v1/workspaces/workspace-a/bills/bill-a")
+	if len(perBill) != 2 || perBill[0] != http.MethodPatch || perBill[1] != http.MethodDelete {
+		t.Fatalf("per-bill allowed methods = %#v, want [PATCH DELETE]", perBill)
 	}
 }
 

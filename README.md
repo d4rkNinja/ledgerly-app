@@ -106,7 +106,12 @@ and known boundaries directly.
   actions, and workspace sharing.
 - Financial goals with progress, linked transactions, completion, cancellation,
   reopening, and rescheduling flows.
-- Recurring bill visibility and reusable contacts.
+- Managed recurring bills: create, edit, or stop tracking bills; recurring
+  payment detection scans the last 180 days for steady merchant patterns
+  (three or more occurrences at a consistent interval with a dominant amount)
+  and proposes them on the Bills page — nothing is tracked until you approve
+  the suggestion or dismiss it forever. Accepted bills stay linked to their
+  pattern even after renaming.
 
 ### Collaboration
 

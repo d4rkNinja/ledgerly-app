@@ -27,6 +27,7 @@ export type Permission =
   | 'delete_all_transactions'
   | 'manage_budgets'
   | 'manage_goals'
+  | 'manage_bills'
   | 'submit_expenses'
   | 'approve_expenses'
   | 'manage_reimbursements'
@@ -357,6 +358,7 @@ export interface Bill {
   dueDate: string
   amount: Money
   autopay: boolean
+  frequency?: string
 }
 
 export interface ApiErrorShape {

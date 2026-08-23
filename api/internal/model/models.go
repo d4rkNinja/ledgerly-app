@@ -347,6 +347,10 @@ type Bill struct {
 	// Active is intentionally storage-only. Records created before this field
 	// existed are treated as active by the bills query.
 	Active    *bool     `bson:"active,omitempty" json:"-"`
+	// DetectionSignature links a bill to the recurring-payment suggestion it
+	// was approved from, so later detections stay suppressed even if the user
+	// renames the bill away from the original merchant text.
+	DetectionSignature string    `bson:"detection_signature,omitempty" json:"-"`
 	CreatedAt time.Time `bson:"created_at" json:"createdAt"`
 }
 

@@ -32,10 +32,13 @@ type automationTestStore struct {
 	bills           []model.Bill
 	contacts        []model.Contact
 	audits          []model.AuditEvent
+	dismissals      []recurringDismissalRecord
 
 	createdKeys  []string
 	failNextFind error
 }
+
+type recurringDismissalRecord = recurringDismissalRow
 
 func (s *automationTestStore) collectionDocuments(collection string) []reflect.Value {
 	switch collection {
@@ -57,6 +60,8 @@ func (s *automationTestStore) collectionDocuments(collection string) []reflect.V
 		return valuesOf(s.contacts)
 	case "audit_events":
 		return valuesOf(s.audits)
+	case "recurring_dismissals":
+		return valuesOf(s.dismissals)
 	}
 	return nil
 }
@@ -78,6 +83,15 @@ func (s *automationTestStore) Insert(_ context.Context, collection string, docum
 		s.reconciliations = append(s.reconciliations, *(document.(*model.AccountReconciliation)))
 	case "audit_events":
 		s.audits = append(s.audits, *(document.(*model.AuditEvent)))
+	case "recurring_transactions":
+		s.bills = append(s.bills, *(document.(*model.Bill)))
+	case "recurring_dismissals":
+		doc := document.(map[string]any)
+		s.dismissals = append(s.dismissals, recurringDismissalRecord{
+			ID:          asString(doc["_id"]),
+			WorkspaceID: asString(doc["workspace_id"]),
+			Signature:   asString(doc["signature"]),
+		})
 	}
 	return nil
 }
@@ -441,7 +455,16 @@ func bsonFieldValue(document any, field string) any {
 	for index := 0; index < structType.NumField(); index++ {
 		tag := strings.Split(structType.Field(index).Tag.Get("bson"), ",")[0]
 		if tag == field || (tag == "" && structType.Field(index).Name == field) {
-			return reflected.Field(index).Interface()
+			value := reflected.Field(index).Interface()
+			// Dereference set pointers so equality checks see the pointed-to
+			// value, mirroring how BSON stores the inner document.
+			if pointer, ok := value.(reflect.Value); ok {
+				value = pointer.Interface()
+			}
+			if fieldValue := reflect.ValueOf(value); fieldValue.Kind() == reflect.Ptr && !fieldValue.IsNil() {
+				return fieldValue.Elem().Interface()
+			}
+			return value
 		}
 	}
 	return nil
