@@ -14,6 +14,10 @@ release is cut.
   read positively), and category rows note whether spending rose, fell, is
   new, or did not recur. Comparisons render only when the previous-period
   report loads; a failed lookup never blocks the main summary.
+- **Insights period selection.** The Insights page gains the same reporting
+  period selector as the dashboard — this/last/custom month, custom range,
+  this week, last 7 days, and this year — so any bounded period can be
+  summarised and compared against its preceding equivalent.
 - **CI checks.** A GitHub Actions workflow now runs API checks (formatting,
   vet, tests, build) and web checks (tests, typecheck, lint, build) on every
   pull request and push to main.

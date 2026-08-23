@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   describeCategoryChange,
   describeMetricChange,
+  insightsPeriodValueForMode,
+  insightsReportRange,
   previousPeriodRange,
 } from './insights-model'
 
@@ -22,6 +24,81 @@ describe('previousPeriodRange', () => {
     expect(previousPeriodRange('2026-08-01T00:00:00.000Z', 'also-bad')).toBeNull()
     expect(previousPeriodRange('2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')).toBeNull()
     expect(previousPeriodRange('2026-08-02T00:00:00.000Z', '2026-08-01T00:00:00.000Z')).toBeNull()
+  })
+})
+
+describe('insightsPeriodValueForMode', () => {
+  const today = '2026-08-23'
+
+  it('resolves civil month modes', () => {
+    expect(insightsPeriodValueForMode('this-month', '', '', '', today)).toEqual({
+      mode: 'this-month',
+      month: '2026-08-01',
+      from: '2026-08-01',
+      to: '2026-08-31',
+    })
+    expect(insightsPeriodValueForMode('last-month', '', '', '', today)).toEqual({
+      mode: 'last-month',
+      month: '2026-07-01',
+      from: '2026-07-01',
+      to: '2026-07-31',
+    })
+    expect(
+      insightsPeriodValueForMode('custom-month', '2025-02-15', '', '', today),
+    ).toEqual({
+      mode: 'custom-month',
+      month: '2025-02-01',
+      from: '2025-02-01',
+      to: '2025-02-28',
+    })
+  })
+
+  it('orders a custom range and tolerates invalid input', () => {
+    expect(
+      insightsPeriodValueForMode('custom-range', '', '2026-03-05', '2026-03-01', today),
+    ).toEqual({
+      mode: 'custom-range',
+      month: '2026-03-01',
+      from: '2026-03-01',
+      to: '2026-03-05',
+    })
+    expect(
+      insightsPeriodValueForMode('custom-range', '', 'not-a-date', 'also-bad', today),
+    ).toEqual({
+      mode: 'custom-range',
+      month: '2026-08-01',
+      from: '2026-08-01',
+      to: '2026-08-31',
+    })
+  })
+
+  it('resolves week, rolling seven day, and year modes', () => {
+    expect(insightsPeriodValueForMode('this-week', '', '', '', today)).toEqual({
+      mode: 'this-week',
+      month: '2026-08-01',
+      from: '2026-08-17',
+      to: '2026-08-23',
+    })
+    expect(insightsPeriodValueForMode('last-7-days', '', '', '', today)).toEqual({
+      mode: 'last-7-days',
+      month: '2026-08-01',
+      from: '2026-08-17',
+      to: '2026-08-23',
+    })
+    expect(insightsPeriodValueForMode('this-year', '', '', '', today)).toEqual({
+      mode: 'this-year',
+      month: '2026-01-01',
+      from: '2026-01-01',
+      to: '2026-12-31',
+    })
+  })
+
+  it('builds an exclusive UTC request range', () => {
+    const period = insightsPeriodValueForMode('this-month', '', '', '', today)
+    expect(insightsReportRange(period)).toEqual({
+      from: '2026-08-01T00:00:00.000Z',
+      to: '2026-09-01T00:00:00.000Z',
+    })
   })
 })
 

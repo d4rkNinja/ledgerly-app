@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MotionConfig } from 'motion/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -171,10 +172,37 @@ describe('live insights period comparison', () => {
     renderInsights()
 
     expect(
-      await screen.findByText('Net cash flow this month'),
+      await screen.findByText('Net cash flow for the selected period'),
     ).toBeInTheDocument()
     expect(screen.queryByText(/vs previous period/)).not.toBeInTheDocument()
     const fallbackSubtitles = screen.getAllByText('Current report period')
     expect(fallbackSubtitles.length).toBeGreaterThan(0)
+  })
+
+  it('re-queries current and previous ranges after navigating to another month', async () => {
+    const augustStart = '2026-08-01T00:00:00.000Z'
+    apiMocks.get.mockImplementation((path: string) => {
+      const url = new URL(`https://ledgerly.test${String(path)}`)
+      if (url.searchParams.get('from') === augustStart) {
+        return Promise.resolve(currentReport)
+      }
+      return Promise.resolve(previousReport)
+    })
+
+    const user = userEvent.setup()
+    renderInsights()
+
+    expect(
+      await screen.findByText('Net cash flow for the selected period'),
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Previous month from August 2026' }),
+    )
+
+    await vi.waitFor(() => {
+      const paths = apiMocks.get.mock.calls.map((call) => String(call[0]))
+      expect(paths.some((path) => path.includes('from=2026-07-01T00%3A00%3A00.000Z'))).toBe(true)
+      expect(paths.some((path) => path.includes('from=2026-05-31T00%3A00%3A00.000Z'))).toBe(true)
+    })
   })
 })
