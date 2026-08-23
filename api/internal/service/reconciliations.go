@@ -28,10 +28,10 @@ type ReconciliationPreview struct {
 }
 
 type ReconciliationCompleteInput struct {
-	StatementDate          string `json:"statementDate"`
-	StatementBalanceMinor  int64  `json:"statementBalanceMinor"`
-	AcknowledgeDifference  bool   `json:"acknowledgeDifference"`
-	Note                   string `json:"note"`
+	StatementDate         string `json:"statementDate"`
+	StatementBalanceMinor int64  `json:"statementBalanceMinor"`
+	AcknowledgeDifference bool   `json:"acknowledgeDifference"`
+	Note                  string `json:"note"`
 }
 
 // ReconciliationPreview reports how the account's Ledgerly balance compares
@@ -50,10 +50,10 @@ func (s *FinanceService) ReconciliationPreview(
 		return nil, err
 	}
 	preview := &ReconciliationPreview{
-		Currency:            account.Currency,
-		AccountID:           account.ID,
-		StatementDate:       statementDate,
-		LedgerBalanceMinor:  account.BalanceMinor,
+		Currency:           account.Currency,
+		AccountID:          account.ID,
+		StatementDate:      statementDate,
+		LedgerBalanceMinor: account.BalanceMinor,
 	}
 	if input.StatementBalanceMinor != nil {
 		if *input.StatementBalanceMinor < -model.MaxMoneyMinor || *input.StatementBalanceMinor > model.MaxMoneyMinor {

@@ -475,13 +475,13 @@ type RulePreviewResult struct {
 }
 
 type PreviewSampleRow struct {
-	ID          string      `json:"id"`
-	Merchant    string      `json:"merchant,omitempty"`
-	Type        string      `json:"type"`
-	Category    string      `json:"category,omitempty"`
-	AmountMinor int64       `json:"amountMinor"`
-	Currency    string      `json:"currency"`
-	OccurredAt  time.Time   `json:"occurredAt"`
+	ID          string                    `json:"id"`
+	Merchant    string                    `json:"merchant,omitempty"`
+	Type        string                    `json:"type"`
+	Category    string                    `json:"category,omitempty"`
+	AmountMinor int64                     `json:"amountMinor"`
+	Currency    string                    `json:"currency"`
+	OccurredAt  time.Time                 `json:"occurredAt"`
 	Changes     []model.AppliedRuleChange `json:"changes"`
 }
 
@@ -559,9 +559,9 @@ type RuleRunSummary struct {
 }
 
 type RuleRunTransactionLog struct {
-	TransactionID string `json:"-"`
-	PublicID      string `json:"transactionId"`
-	Label         string `json:"label,omitempty"`
+	TransactionID string   `json:"-"`
+	PublicID      string   `json:"transactionId"`
+	Label         string   `json:"label,omitempty"`
 	Rules         []string `json:"rulesApplied"`
 }
 

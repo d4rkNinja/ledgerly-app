@@ -260,8 +260,8 @@ type Transaction struct {
 
 // TransactionSourceManual marks records created directly in Ledgerly.
 const (
-	TransactionSourceManual  = "manual"
-	TransactionSourceImport  = "import"
+	TransactionSourceManual = "manual"
+	TransactionSourceImport = "import"
 )
 
 // PublicAutomationChange is the client-facing explanation of one automated
@@ -295,10 +295,10 @@ func (transaction Transaction) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		publicTransaction
-		HasSplits  bool                       `json:"hasSplits,omitempty"`
-		Imported   bool                       `json:"imported,omitempty"`
-		Cleared    bool                       `json:"cleared,omitempty"`
-		Automation []PublicAutomationRecord   `json:"automation,omitempty"`
+		HasSplits  bool                     `json:"hasSplits,omitempty"`
+		Imported   bool                     `json:"imported,omitempty"`
+		Cleared    bool                     `json:"cleared,omitempty"`
+		Automation []PublicAutomationRecord `json:"automation,omitempty"`
 	}{
 		publicTransaction: publicTransaction(transaction),
 		HasSplits:         len(transaction.Splits) > 0,
@@ -346,12 +346,12 @@ type Bill struct {
 	Autopay     bool      `bson:"autopay,omitempty" json:"autopay"`
 	// Active is intentionally storage-only. Records created before this field
 	// existed are treated as active by the bills query.
-	Active    *bool     `bson:"active,omitempty" json:"-"`
+	Active *bool `bson:"active,omitempty" json:"-"`
 	// DetectionSignature links a bill to the recurring-payment suggestion it
 	// was approved from, so later detections stay suppressed even if the user
 	// renames the bill away from the original merchant text.
 	DetectionSignature string    `bson:"detection_signature,omitempty" json:"-"`
-	CreatedAt time.Time `bson:"created_at" json:"createdAt"`
+	CreatedAt          time.Time `bson:"created_at" json:"createdAt"`
 }
 
 type Goal struct {
