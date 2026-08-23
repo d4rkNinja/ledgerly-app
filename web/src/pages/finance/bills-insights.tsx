@@ -77,6 +77,13 @@ import {
   hasWorkspacePermission,
   useFinanceData,
 } from './data'
+import {
+  describeCategoryChange,
+  describeMetricChange,
+  previousPeriodRange,
+  type MetricComparison,
+  type MetricKind,
+} from './insights-model'
 
 export function BillsPage() {
   const { demoMode, privacyMode, workspace } = useApp()
@@ -566,6 +573,19 @@ function LiveInsightsPage() {
       ),
     retry: 1,
   })
+  const previousRange = previousPeriodRange(period.from, period.to)
+  const previousQuery = useQuery({
+    queryKey: ['insights', workspace.id, 'previous', previousRange?.from, previousRange?.to],
+    queryFn: () => {
+      if (!previousRange) return Promise.resolve(null)
+      return api.get<ReportView | null>(
+        `/workspaces/${workspace.id}/reports/summary?from=${encodeURIComponent(previousRange.from)}&to=${encodeURIComponent(previousRange.to)}`,
+      )
+    },
+    enabled: previousRange !== null,
+    retry: 1,
+  })
+  const previousReport = previousQuery.data ?? null
 
   if (reportQuery.isLoading) {
     return (
@@ -611,6 +631,24 @@ function LiveInsightsPage() {
   const categories = Object.entries(report.byCategory ?? {}).sort(
     (left, right) => right[1] - left[1],
   )
+  const metricKinds: MetricKind[] = ['income', 'spending', 'net']
+  const currentTotals: Record<MetricKind, number> = {
+    income: report.incomeMinor,
+    spending: report.spendingMinor,
+    net: report.netMinor,
+  }
+  const previousTotals: Record<MetricKind, number> = {
+    income: previousReport?.incomeMinor ?? 0,
+    spending: previousReport?.spendingMinor ?? 0,
+    net: previousReport?.netMinor ?? 0,
+  }
+  const comparisons: MetricComparison[] = previousReport
+    ? metricKinds
+        .map((kind) =>
+          describeMetricChange(kind, currentTotals[kind], previousTotals[kind]),
+        )
+        .filter((item): item is MetricComparison => item !== null)
+    : []
   const canShareReport =
     workspace.permissions?.includes('export_data') === true
   const reportPeriod = new Date(period.from)
@@ -682,6 +720,11 @@ function LiveInsightsPage() {
               ? 'Income is at or above spending'
               : 'Spending is above income'}
           </Badge>
+          {comparisons.map((comparison) => (
+            <Badge key={comparison.label} tone={comparison.tone}>
+              {comparison.label}
+            </Badge>
+          ))}
         </div>
         <figure
           className="insight-bars"
@@ -733,7 +776,14 @@ function LiveInsightsPage() {
                   <ListRow
                     leading={<ReceiptText aria-hidden="true" />}
                     title={friendlyLabel(category)}
-                    subtitle="Current report period"
+                    subtitle={
+                      (previousReport
+                        ? describeCategoryChange(
+                            amountMinor,
+                            previousReport.byCategory?.[category] ?? 0,
+                          )
+                        : null) ?? 'Current report period'
+                    }
                     trailing={
                       <MoneyText money={{ amountMinor, currency }} />
                     }

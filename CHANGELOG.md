@@ -6,6 +6,18 @@ release is cut.
 
 ## [Unreleased]
 
+### Added
+
+- **Insights period comparison.** The live Insights page now compares the
+  selected period with the previous equivalent period: income, spending, and
+  net cash flow each show an up/down percentage badge (spending reductions
+  read positively), and category rows note whether spending rose, fell, is
+  new, or did not recur. Comparisons render only when the previous-period
+  report loads; a failed lookup never blocks the main summary.
+- **CI checks.** A GitHub Actions workflow now runs API checks (formatting,
+  vet, tests, build) and web checks (tests, typecheck, lint, build) on every
+  pull request and push to main.
+
 ## [0.2.0] - 2026-08-23
 
 ### Added
