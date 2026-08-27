@@ -36,6 +36,8 @@ interface PeriodSelectorProps {
   value: DashboardPeriodValue
   onChange: (value: Partial<DashboardPeriodValue> & { mode: DashboardPeriodMode }) => void
   onClear: () => void
+  /** Restrict the offered modes; defaults to every mode. */
+  modes?: readonly DashboardPeriodMode[]
 }
 
 function monthDate(value: DateOnly) {
@@ -63,7 +65,18 @@ function labelForMode(mode: DashboardPeriodMode) {
   }
 }
 
-export function PeriodSelector({ value, onChange, onClear }: PeriodSelectorProps) {
+const ALL_MODES: readonly DashboardPeriodMode[] = [
+  'this-month',
+  'last-month',
+  'custom-month',
+  'custom-range',
+  'this-week',
+  'last-7-days',
+  'this-year',
+  'all-time',
+]
+
+export function PeriodSelector({ value, onChange, onClear, modes = ALL_MODES }: PeriodSelectorProps) {
   const month = monthDate(value.month)
   const monthLabel = formatDateOnly(month, { month: 'long', year: 'numeric' })
   const selectedYear = Number(month.slice(0, 4))
@@ -87,14 +100,11 @@ export function PeriodSelector({ value, onChange, onClear }: PeriodSelectorProps
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="this-month">This month</SelectItem>
-            <SelectItem value="last-month">Last month</SelectItem>
-            <SelectItem value="custom-month">Custom month</SelectItem>
-            <SelectItem value="custom-range">Custom date range</SelectItem>
-            <SelectItem value="this-week">This week</SelectItem>
-            <SelectItem value="last-7-days">Last 7 days</SelectItem>
-            <SelectItem value="this-year">This year</SelectItem>
-            <SelectItem value="all-time">All time</SelectItem>
+            {ALL_MODES.map((option) => (
+              <SelectItem key={option} value={option} disabled={!modes.includes(option)}>
+                {labelForMode(option)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

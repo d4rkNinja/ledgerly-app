@@ -155,6 +155,6 @@ export function reapplyHydratedTheme(): 'light' | 'dark' {
   document.documentElement.style.colorScheme = resolved
   document
     .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
-    ?.setAttribute('content', resolved === 'dark' ? '#0b120e' : '#f1f5f2')
+    ?.setAttribute('content', resolved === 'dark' ? '#0c1410' : '#f3f5f1')
   return resolved
 }

@@ -6,6 +6,63 @@ release is cut.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-27
+
+### Added
+
+- **Docker deployment stack.** A root Compose file now runs the whole
+  application — MongoDB as a single-node replica set, the API as a distroless
+  container, and the web client served by an nginx proxy that forwards
+  `/api/v1` same-origin. New `api/Dockerfile` and `web/Dockerfile` builds are
+  multi-stage; the README documents self-hosting and what a hardened install
+  must still provide.
+- **Insights period comparison.** The live Insights page now compares the
+  selected period with the previous equivalent period: income, spending, and
+  net cash flow each show an up/down percentage badge (spending reductions
+  read positively), and category rows note whether spending rose, fell, is
+  new, or did not recur. Comparisons render only when the previous-period
+  report loads; a failed lookup never blocks the main summary.
+- **Insights period selection.** The Insights page gains the same reporting
+  period selector as the dashboard — this/last/custom month, custom range,
+  this week, last 7 days, and this year — so any bounded period can be
+  summarised and compared against its preceding equivalent.
+- **CI checks.** A GitHub Actions workflow now runs API checks (formatting,
+  vet, tests, build) and web checks (tests, typecheck, lint, build) on every
+  pull request and push to main.
+- **Quiet Ledger brand system.** The visual tokens, typography, spacing,
+  shape, motion, responsive behavior, and fixed-logo rules are documented in
+  a reusable brand guide with a matching reference board.
+
+### Changed
+
+- **Application-wide UI polish.** Light and dark themes now use a calmer,
+  finance-focused visual hierarchy with one Manrope type system, tabular
+  financial values, tighter radii, clearer controls, quieter surfaces, and
+  restrained elevation instead of repetitive card treatment.
+- **Responsive navigation and authentication.** Desktop navigation is denser,
+  mobile navigation is anchored and safe-area aware, and public authentication
+  pages adapt cleanly from wide screens down to narrow phones without forced
+  viewport-sized content blocks.
+- **Purposeful motion.** Buttons, checkboxes, switches, selects, copy states,
+  destructive confirmations, and bottom sheets use short 140–280 ms feedback.
+  Repetitive page, section, dock, and keyboard-driven entrance effects were
+  removed.
+- **Native launch continuity.** Browser theme colors, Capacitor backgrounds,
+  Android splash screens, launcher assets, and the Play Store icon now use the
+  same Quiet Ledger canvas colors while preserving the existing Ledgerly logo.
+
+### Fixed
+
+- Bottom sheets no longer expose their backdrop as a duplicate keyboard stop;
+  focus is restored to the opener, destructive confirmation focus moves
+  predictably, and final destructive actions have distinct accessible names.
+- Copy actions now combine stable icon swaps with atomic polite status
+  announcements, so assistive technology receives reliable success feedback.
+- Reduced-motion mode removes spatial sheet dragging as well as translated,
+  scaled, spring, staggered, and chart-growth animation.
+- Select menus now stay within the viewport, use contained scrolling, and keep
+  their labels registered without the previous elastic height choreography.
+
 ## [0.2.0] - 2026-08-23
 
 ### Added

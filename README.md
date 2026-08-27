@@ -180,12 +180,14 @@ ledgerly-app/
 │   └── android/              Capacitor Android project, native overlay, and tooling
 ├── docs/                     Feature specs, implementation plans, and screenshots
 ├── web/                      React/Vite application and Android npm entry points
+├── docker-compose.yml        Full-stack Compose (MongoDB + API + web)
 ├── .gitignore
 └── README.md
 ```
 
-There is no root package manager, Makefile, or full-stack Compose file. Run
-backend and frontend commands from their service directories.
+There is no root package manager or Makefile. Run backend and frontend
+commands from their service directories; the full-stack Docker deployment is
+the exception and runs from the repository root.
 
 ## Getting started
 
@@ -293,8 +295,49 @@ to a deployed API endpoint rather than the local Vite proxy.
 
 ## Run with Docker
 
-The checked-in Compose file starts **MongoDB only**. The API and web application
-still run on the host.
+Two Compose files are provided:
+
+- `api/docker-compose.yml` starts **MongoDB only** for host-run development.
+- The root `docker-compose.yml` starts the **full stack**: MongoDB, the API,
+  and the web application behind an nginx proxy.
+
+### Full stack (self-hosting)
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+The web application listens on
+`http://localhost:8088` (`LEDGERLY_WEB_PORT` customises the host port) and
+proxies `/api/v1` to the API container, so no CORS or cross-origin cookies are
+involved. MongoDB persists to the `mongo-data` volume and runs as replica set
+`rs0`, initiated against its service DNS name.
+
+Configuration is environment-driven:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `LEDGERLY_WEB_PORT` | `8088` | Host port for the web application |
+| `LEDGERLY_PUBLIC_ORIGIN` | `http://localhost:8088` | Origin allowed by the API's CORS check; set it to your real scheme plus domain when exposing the stack |
+| `VITE_API_BASE_URL` | `/api/v1` | API base URL baked into the web bundle at build time; point it at a public API URL only when serving the web app from a different origin |
+| `MONGO_DB` | `moneytracking` | Database name |
+
+For a deployment on a real domain, run `LEDGERLY_PUBLIC_ORIGIN=https://…`
+`docker compose up -d --build` and put TLS termination in front of the `web`
+service. See [Deployment](#deployment) for what a hardened installation still
+needs to provide.
+
+Stop the stack without deleting data:
+
+```bash
+docker compose down
+```
+
+### Development MongoDB only
+
+The checked-in `api/` Compose file starts just the database while the API and
+web application run on the host. It still follows the original flow:
 
 ```bash
 cd api
@@ -315,9 +358,6 @@ Stop the containers without deleting the persistent volume:
 ```bash
 docker compose down
 ```
-
-There are no API or web Dockerfiles and no production Compose stack in this
-repository.
 
 ## Run the applications
 
@@ -457,22 +497,22 @@ Play-ready.
 
 ## Deployment
 
-Ledgerly does not include a production Docker stack or a turnkey deployment
-script. A manual deployment needs:
+The repository ships a working full-stack Compose file (see
+[Run with Docker](#run-with-docker)) that packages the API as a distroless
+container, the web client behind an nginx proxy, and MongoDB as a single-node
+replica set. A hardened production installation still needs:
 
-1. A MongoDB replica set or sharded cluster that supports transactions.
-2. The compiled Go API running under an operating-system service or process
-   manager with explicit production environment variables.
-3. TLS termination and a reverse proxy in front of the API.
-4. `CORS_ALLOWED_ORIGINS` restricted to the deployed web origin.
-5. The contents of `web/dist/` served by a static host with SPA fallback to
-   `index.html`.
-6. Backups, monitoring, log collection, secret management, and a rollback
-   procedure supplied by the deployment environment.
+1. TLS termination and a reverse proxy in front of the `web` service, with
+   `LEDGERLY_PUBLIC_ORIGIN` set to the real origin.
+2. Backups for the `mongo-data` volume, monitoring, log collection, secret
+   management, and a rollback procedure supplied by the deployment
+   environment.
+3. An external/distributed rate-limiting strategy when running more than one
+   API instance; the in-process limiter is per instance.
 
-Build the web client with the final HTTPS API URL; Vite variables are embedded
-at build time. The in-process API rate limiter is per instance, so a
-multi-instance deployment needs an external/distributed rate-limiting strategy.
+Build the web client with the final API URL when it differs from same-origin;
+Vite variables are embedded at build time via the `VITE_API_BASE_URL` build
+argument.
 
 ### Health checks
 

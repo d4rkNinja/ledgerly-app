@@ -221,11 +221,11 @@ func (s *FinanceService) DismissRecurringSuggestion(ctx context.Context, workspa
 		return &FieldError{Field: "signature", Message: "is required"}
 	}
 	record := map[string]any{
-		"_id":         workspaceID + "|" + signature,
+		"_id":          workspaceID + "|" + signature,
 		"workspace_id": workspaceID,
-		"signature":   signature,
-		"created_by":  actorID,
-		"created_at":  time.Now().UTC(),
+		"signature":    signature,
+		"created_by":   actorID,
+		"created_at":   time.Now().UTC(),
 	}
 	if err := s.store.Insert(ctx, "recurring_dismissals", record); err != nil {
 		return err

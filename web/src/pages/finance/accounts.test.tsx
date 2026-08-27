@@ -257,7 +257,9 @@ describe('bank account management', () => {
 
     await user.click(await chooseAccountFromList())
     await user.click(screen.getByRole('button', { name: 'Archive account' }))
-    await user.click(screen.getByRole('button', { name: 'Archive account' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Confirm archive account' }),
+    )
 
     await waitFor(() => {
       expect(apiMocks.delete).toHaveBeenCalledWith(

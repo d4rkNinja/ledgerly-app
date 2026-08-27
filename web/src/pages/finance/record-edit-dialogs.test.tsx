@@ -10,11 +10,15 @@ import { BudgetEditDialog, TransactionEditDialog } from './record-edit-dialogs'
 const apiMocks = vi.hoisted(() => ({
   patch: vi.fn(),
 }))
+const clipboardMocks = vi.hoisted(() => ({
+  copyTextToClipboard: vi.fn(),
+}))
 
 vi.mock('@/lib/api-client', () => ({
   ApiError: class ApiError extends Error {},
   api: apiMocks,
 }))
+vi.mock('@/lib/clipboard', () => clipboardMocks)
 
 class ResizeObserverStub implements ResizeObserver {
   observe() {}
@@ -33,6 +37,7 @@ const workspace = {
 
 const transaction: Transaction = {
   id: 'transaction-a',
+  transactionId: 'TXN-2026-0001',
   merchant: 'Groceries',
   category: 'Food',
   occurredAt: '2026-08-04T23:30:00.000Z',
@@ -129,6 +134,7 @@ describe('TransactionEditDialog date selection', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiMocks.patch.mockResolvedValue({})
+    clipboardMocks.copyTextToClipboard.mockResolvedValue(true)
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: vi.fn(),
@@ -208,5 +214,31 @@ describe('TransactionEditDialog date selection', () => {
 
     await user.click(rollover)
     expect(rollover).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('announces a copied transaction ID while keeping the control stable', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Copy transaction ID' }),
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Transaction ID copied' }),
+      ).toBeInTheDocument()
+    })
+    expect(clipboardMocks.copyTextToClipboard).toHaveBeenCalledWith(
+      'TXN-2026-0001',
+    )
+    expect(
+      screen
+        .getAllByText('Transaction ID copied.')
+        .some((element) => element.tagName === 'SMALL'),
+    ).toBe(true)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Transaction ID copied.',
+    )
   })
 })

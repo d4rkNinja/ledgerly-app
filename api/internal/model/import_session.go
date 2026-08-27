@@ -25,9 +25,9 @@ const (
 
 // User resolutions for a row. Every reviewed row carries one.
 const (
-	ImportRowActionCreate   = "create"
-	ImportRowActionIgnore   = "ignore"
-	ImportRowActionLink     = "link"
+	ImportRowActionCreate    = "create"
+	ImportRowActionIgnore    = "ignore"
+	ImportRowActionLink      = "link"
 	ImportRowActionUndecided = ""
 )
 
@@ -37,15 +37,15 @@ const (
 )
 
 type ImportColumnMapping struct {
-	HasHeader        bool   `json:"hasHeader"`
-	DateColumn       int    `json:"dateColumn"`
-	DescriptionColumn int   `json:"descriptionColumn"`
-	AmountColumn     int    `json:"amountColumn"`
-	DebitColumn      int    `json:"debitColumn"`
-	CreditColumn     int    `json:"creditColumn"`
-	NotesColumn      int    `json:"notesColumn"`
-	ReferenceColumn  int    `json:"referenceColumn"`
-	DateFormat       string `json:"dateFormat"`
+	HasHeader         bool   `json:"hasHeader"`
+	DateColumn        int    `json:"dateColumn"`
+	DescriptionColumn int    `json:"descriptionColumn"`
+	AmountColumn      int    `json:"amountColumn"`
+	DebitColumn       int    `json:"debitColumn"`
+	CreditColumn      int    `json:"creditColumn"`
+	NotesColumn       int    `json:"notesColumn"`
+	ReferenceColumn   int    `json:"referenceColumn"`
+	DateFormat        string `json:"dateFormat"`
 	// AmountMode selects single-column signed amounts ("signed", negative
 	// means debit) or expense-positive single-column amounts
 	// ("expense_positive") or the debit/credit pair ("two_column").
@@ -53,38 +53,38 @@ type ImportColumnMapping struct {
 }
 
 type ImportMatchInfo struct {
-	TransactionID string `json:"-"`
-	Label         string `json:"label,omitempty"`
-	OccurredAt    string `json:"occurredAt,omitempty"`
-	AmountMinor   int64  `json:"amountMinor,omitempty"`
+	TransactionID string  `json:"-"`
+	Label         string  `json:"label,omitempty"`
+	OccurredAt    string  `json:"occurredAt,omitempty"`
+	AmountMinor   int64   `json:"amountMinor,omitempty"`
 	Score         float64 `json:"score,omitempty"`
 }
 
 type ImportRow struct {
-	Index       int             `bson:"index" json:"index"`
-	RawDate     string          `bson:"raw_date" json:"rawDate"`
-	OccurredAt  time.Time       `bson:"occurred_at" json:"occurredAt"`
-	Description string          `bson:"description" json:"description"`
-	Notes       string          `bson:"notes,omitempty" json:"notes,omitempty"`
-	Reference   string          `bson:"reference,omitempty" json:"reference,omitempty"`
-	AmountMinor int64           `bson:"amount_minor" json:"amountMinor"`
-	Direction   string          `bson:"direction" json:"direction"`
-	State       string          `bson:"state" json:"state"`
-	Error       string          `bson:"error,omitempty" json:"error,omitempty"`
-	Action      string          `bson:"action" json:"action"`
+	Index       int              `bson:"index" json:"index"`
+	RawDate     string           `bson:"raw_date" json:"rawDate"`
+	OccurredAt  time.Time        `bson:"occurred_at" json:"occurredAt"`
+	Description string           `bson:"description" json:"description"`
+	Notes       string           `bson:"notes,omitempty" json:"notes,omitempty"`
+	Reference   string           `bson:"reference,omitempty" json:"reference,omitempty"`
+	AmountMinor int64            `bson:"amount_minor" json:"amountMinor"`
+	Direction   string           `bson:"direction" json:"direction"`
+	State       string           `bson:"state" json:"state"`
+	Error       string           `bson:"error,omitempty" json:"error,omitempty"`
+	Action      string           `bson:"action" json:"action"`
 	Match       *ImportMatchInfo `bson:"match,omitempty" json:"match,omitempty"`
 }
 
 type ImportSummary struct {
-	TotalRows     int64 `json:"totalRows"`
-	ValidRows     int64 `json:"validRows"`
-	ErrorRows     int64 `json:"errorRows"`
-	DuplicateRows int64 `json:"duplicateRows"`
+	TotalRows       int64 `json:"totalRows"`
+	ValidRows       int64 `json:"validRows"`
+	ErrorRows       int64 `json:"errorRows"`
+	DuplicateRows   int64 `json:"duplicateRows"`
 	PossibleMatches int64 `json:"possibleMatches"`
-	NewRows       int64 `json:"newRows"`
-	IgnoredRows   int64 `json:"ignoredRows"`
-	CreateCount   int64 `json:"createCount"`
-	LinkCount     int64 `json:"linkCount"`
+	NewRows         int64 `json:"newRows"`
+	IgnoredRows     int64 `json:"ignoredRows"`
+	CreateCount     int64 `json:"createCount"`
+	LinkCount       int64 `json:"linkCount"`
 }
 
 // ImportSession is one statement upload under review. Rows are embedded so a

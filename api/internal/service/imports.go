@@ -13,17 +13,17 @@ import (
 )
 
 const (
-	importMatchWindowDays   = 7
-	importMatchDayDrift     = 3
-	importCandidateLimit    = 4000
-	importDescriptionLimit  = 200
+	importMatchWindowDays  = 7
+	importMatchDayDrift    = 3
+	importCandidateLimit   = 4000
+	importDescriptionLimit = 200
 )
 
 type ImportSessionInput struct {
-	AccountID  string                      `json:"accountId"`
-	SourceName string                      `json:"sourceName"`
-	Csv        string                      `json:"csv"`
-	Mapping    model.ImportColumnMapping   `json:"mapping"`
+	AccountID  string                    `json:"accountId"`
+	SourceName string                    `json:"sourceName"`
+	Csv        string                    `json:"csv"`
+	Mapping    model.ImportColumnMapping `json:"mapping"`
 }
 
 // CreateImportSession uploads and parses a statement into a review session.
@@ -105,9 +105,9 @@ func (s *FinanceService) UpdateImportSession(ctx context.Context, workspaceID, a
 	replacement.UpdatedAt = now
 	var updated model.ImportSession
 	if err := s.store.UpdateOne(ctx, "import_sessions", repository.Filter{
-		"_id":         existing.ID,
+		"_id":          existing.ID,
 		"workspace_id": workspaceID,
-		"status":      model.ImportSessionDraft,
+		"status":       model.ImportSessionDraft,
 	}, repository.Filter{"$set": bsonUpdateDocument(replacement)}, &updated); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrConflict
@@ -155,14 +155,14 @@ func preserveResolutions(previous, next []model.ImportRow) {
 
 func bsonUpdateDocument(session *model.ImportSession) repository.Filter {
 	return repository.Filter{
-		"account_id": session.AccountID,
-		"vault_id":   session.VaultID,
+		"account_id":  session.AccountID,
+		"vault_id":    session.VaultID,
 		"source_name": session.SourceName,
-		"currency":   session.Currency,
-		"mapping":    session.Mapping,
-		"rows":       session.Rows,
-		"summary":    session.Summary,
-		"updated_at": session.UpdatedAt,
+		"currency":    session.Currency,
+		"mapping":     session.Mapping,
+		"rows":        session.Rows,
+		"summary":     session.Summary,
+		"updated_at":  session.UpdatedAt,
 	}
 }
 
@@ -396,9 +396,9 @@ func (s *FinanceService) clearLinkedTransaction(ctx context.Context, workspaceID
 	now := time.Now().UTC()
 	var updated model.Transaction
 	if err := s.store.UpdateOne(ctx, "transactions", repository.Filter{
-		"_id":           current.ID,
-		"workspace_id":  workspaceID,
-		"cleared_at":    repository.Filter{"$exists": false},
+		"_id":          current.ID,
+		"workspace_id": workspaceID,
+		"cleared_at":   repository.Filter{"$exists": false},
 	}, repository.Filter{"$set": repository.Filter{
 		"cleared_at": now,
 		"updated_at": now,

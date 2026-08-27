@@ -1337,7 +1337,7 @@ describe("TransactionsPage date filters", () => {
     await user.click(screen.getByRole("button", { name: "Delete transaction" }));
     await user.click(
       within(screen.getByRole("alert")).getByRole("button", {
-        name: "Delete transaction",
+        name: "Confirm delete transaction",
       }),
     );
 

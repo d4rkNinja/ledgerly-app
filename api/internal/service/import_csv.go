@@ -13,13 +13,13 @@ import (
 // Date format options accepted through ImportColumnMapping.DateFormat.
 // "auto" samples the parsed values and picks a deterministic layout.
 const (
-	importDateFormatAuto  = "auto"       // 2006-01-02
-	importDateFormatISO   = "iso"        // 2006-01-02
-	importDateFormatDMY   = "dmy"        // 02/01/2006
-	importDateFormatMDY   = "mdy"        // 01/02/2006
-	importDateFormatYMD_S = "ymd_slash"  // 2006/01/02
-	importDateFormatDMY_D = "dmy_dash"   // 02-01-2006
-	importDateFormatDMY_M = "dmy_month"  // 02-Jan-2006
+	importDateFormatAuto  = "auto"      // 2006-01-02
+	importDateFormatISO   = "iso"       // 2006-01-02
+	importDateFormatDMY   = "dmy"       // 02/01/2006
+	importDateFormatMDY   = "mdy"       // 01/02/2006
+	importDateFormatYMD_S = "ymd_slash" // 2006/01/02
+	importDateFormatDMY_D = "dmy_dash"  // 02-01-2006
+	importDateFormatDMY_M = "dmy_month" // 02-Jan-2006
 )
 
 const (
@@ -500,6 +500,3 @@ func allDigits(value string) bool {
 	}
 	return true
 }
-
-
-

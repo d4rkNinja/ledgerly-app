@@ -5,14 +5,14 @@ import { EASE_OUT } from './ease'
 /** Product-level timing layered on top of the registry-owned BeUI tokens. */
 export const MOTION_DURATION = {
   instant: 0,
-  fast: 0.16,
-  standard: 0.28,
-  deliberate: 0.4,
+  fast: 0.14,
+  standard: 0.22,
+  deliberate: 0.28,
 } as const
 
 export const MOTION_DISTANCE = {
-  content: 8,
-  panel: 12,
+  content: 6,
+  panel: 8,
 } as const
 
 export const TRANSITION_FADE = {

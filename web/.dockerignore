@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+docs
+.env
+.env.*
+!.env.example
+android
+*.local
+Dockerfile
+.dockerignore

@@ -158,7 +158,7 @@ func (s *FinanceService) collectReconciliationDifferences(ctx context.Context, w
 		ctx,
 		"account_reconciliations",
 		repository.Filter{
-			"workspace_id":   workspaceID,
+			"workspace_id":     workspaceID,
 			"difference_minor": repository.Filter{"$ne": int64(0)},
 		},
 		&reconciliations,
@@ -174,7 +174,7 @@ func (s *FinanceService) collectReconciliationDifferences(ctx context.Context, w
 		Kind:        "reconciliation_difference",
 		Severity:    "warning",
 		Title:       "Unresolved reconciliation difference",
-		Detail: fmt.Sprintf("An account reconciliation recorded a %d minor-unit difference; investigate recent activity.", latest.DifferenceMinor),
+		Detail:      fmt.Sprintf("An account reconciliation recorded a %d minor-unit difference; investigate recent activity.", latest.DifferenceMinor),
 		AmountMinor: latest.DifferenceMinor,
 		Currency:    latest.Currency,
 		Count:       int64(len(reconciliations)),

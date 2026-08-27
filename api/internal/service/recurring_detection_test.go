@@ -246,4 +246,3 @@ func TestBillCRUDValidatesAndDeactivatesSoftly(t *testing.T) {
 		t.Fatalf("delete missing = %v, want not found", err)
 	}
 }
-

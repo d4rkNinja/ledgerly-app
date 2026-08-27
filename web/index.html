@@ -8,7 +8,7 @@
       content="Ledgerly brings personal, family, and team money into one clear workspace."
     />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f1f5f2" />
+    <meta name="theme-color" content="#f3f5f1" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
@@ -34,7 +34,7 @@
         document.documentElement.style.colorScheme = resolvedTheme
         document
           .querySelector('meta[name="theme-color"]')
-          .setAttribute('content', resolvedTheme === 'dark' ? '#0b120e' : '#f1f5f2')
+          .setAttribute('content', resolvedTheme === 'dark' ? '#0c1410' : '#f3f5f1')
       } catch {
         document.documentElement.dataset.theme = 'light'
         document.documentElement.style.colorScheme = 'light'

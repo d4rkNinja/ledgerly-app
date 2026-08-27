@@ -25,11 +25,11 @@ type ForecastOneOff struct {
 }
 
 type ForecastInput struct {
-	Days           int              `json:"days"`
-	IncludeBills   *bool            `json:"includeBills"`
-	IncludeIncome  *bool            `json:"includeIncome"`
-	IncludeBaseline *bool           `json:"includeBaseline"`
-	OneOff         []ForecastOneOff `json:"oneOff"`
+	Days            int              `json:"days"`
+	IncludeBills    *bool            `json:"includeBills"`
+	IncludeIncome   *bool            `json:"includeIncome"`
+	IncludeBaseline *bool            `json:"includeBaseline"`
+	OneOff          []ForecastOneOff `json:"oneOff"`
 }
 
 type ForecastEvent struct {
@@ -41,16 +41,16 @@ type ForecastEvent struct {
 }
 
 type ForecastPoint struct {
-	Date                string          `json:"date"`
-	Events              []ForecastEvent `json:"events"`
-	BillExpenseMinor    int64           `json:"billExpenseMinor"`
-	BaselineExpenseMinor int64          `json:"baselineExpenseMinor"`
-	BaselineIncomeMinor int64           `json:"baselineIncomeMinor"`
-	OneOffExpenseMinor  int64           `json:"oneOffExpenseMinor"`
-	OneOffIncomeMinor   int64           `json:"oneOffIncomeMinor"`
-	IncomeMinor         int64           `json:"incomeMinor"`
-	ExpenseMinor        int64           `json:"expenseMinor"`
-	ClosingBalanceMinor int64           `json:"closingBalanceMinor"`
+	Date                 string          `json:"date"`
+	Events               []ForecastEvent `json:"events"`
+	BillExpenseMinor     int64           `json:"billExpenseMinor"`
+	BaselineExpenseMinor int64           `json:"baselineExpenseMinor"`
+	BaselineIncomeMinor  int64           `json:"baselineIncomeMinor"`
+	OneOffExpenseMinor   int64           `json:"oneOffExpenseMinor"`
+	OneOffIncomeMinor    int64           `json:"oneOffIncomeMinor"`
+	IncomeMinor          int64           `json:"incomeMinor"`
+	ExpenseMinor         int64           `json:"expenseMinor"`
+	ClosingBalanceMinor  int64           `json:"closingBalanceMinor"`
 }
 
 type ForecastTotals struct {
@@ -60,21 +60,21 @@ type ForecastTotals struct {
 }
 
 type ForecastResult struct {
-	Currency                        string          `json:"currency"`
-	GeneratedAt                     time.Time       `json:"generatedAt"`
-	StartDate                       string          `json:"startDate"`
-	Days                            int             `json:"days"`
-	StartingBalanceMinor            int64           `json:"startingBalanceMinor"`
-	Points                          []ForecastPoint `json:"points"`
-	Totals                          ForecastTotals  `json:"totals"`
-	LowestProjectedBalanceMinor     int64           `json:"lowestProjectedBalanceMinor"`
-	LowestProjectedDate             string          `json:"lowestProjectedDate,omitempty"`
-	AvailableAfterCommittedMinor    int64           `json:"availableAfterCommittedMinor"`
-	FirstNegativeDate               string          `json:"firstNegativeDate,omitempty"`
-	NegativeDays                    int64           `json:"negativeDays"`
-	BaselineDailyExpenseMinor      int64           `json:"baselineDailyExpenseMinor"`
-	BaselineDailyIncomeMinor       int64           `json:"baselineDailyIncomeMinor"`
-	Assumptions                     []string        `json:"assumptions"`
+	Currency                     string          `json:"currency"`
+	GeneratedAt                  time.Time       `json:"generatedAt"`
+	StartDate                    string          `json:"startDate"`
+	Days                         int             `json:"days"`
+	StartingBalanceMinor         int64           `json:"startingBalanceMinor"`
+	Points                       []ForecastPoint `json:"points"`
+	Totals                       ForecastTotals  `json:"totals"`
+	LowestProjectedBalanceMinor  int64           `json:"lowestProjectedBalanceMinor"`
+	LowestProjectedDate          string          `json:"lowestProjectedDate,omitempty"`
+	AvailableAfterCommittedMinor int64           `json:"availableAfterCommittedMinor"`
+	FirstNegativeDate            string          `json:"firstNegativeDate,omitempty"`
+	NegativeDays                 int64           `json:"negativeDays"`
+	BaselineDailyExpenseMinor    int64           `json:"baselineDailyExpenseMinor"`
+	BaselineDailyIncomeMinor     int64           `json:"baselineDailyIncomeMinor"`
+	Assumptions                  []string        `json:"assumptions"`
 }
 
 // Forecast builds a deterministic cash-flow projection from current balances,
@@ -119,12 +119,12 @@ func (s *FinanceService) Forecast(ctx context.Context, workspaceID, actorID stri
 	horizonEnd := startDay.AddDate(0, 0, days)
 
 	result := &ForecastResult{
-		Currency:     workspace.Currency,
-		GeneratedAt:  now,
-		StartDate:    startDay.Format("2006-01-02"),
-		Days:         days,
-		Points:       make([]ForecastPoint, 0, days),
-		Assumptions:  []string{},
+		Currency:    workspace.Currency,
+		GeneratedAt: now,
+		StartDate:   startDay.Format("2006-01-02"),
+		Days:        days,
+		Points:      make([]ForecastPoint, 0, days),
+		Assumptions: []string{},
 	}
 	for _, account := range accounts {
 		if !account.ExcludeFromTotal {

@@ -77,6 +77,22 @@ import {
   hasWorkspacePermission,
   useFinanceData,
 } from './data'
+import {
+  describeCategoryChange,
+  describeMetricChange,
+  insightsPeriodValueForMode,
+  insightsReportRange,
+  INSIGHTS_PERIOD_MODES,
+  isInsightsPeriodMode,
+  previousPeriodRange,
+  type InsightsPeriodValue,
+  type MetricComparison,
+  type MetricKind,
+} from './insights-model'
+import {
+  PeriodSelector,
+  type DashboardPeriodValue,
+} from './period-selector'
 
 export function BillsPage() {
   const { demoMode, privacyMode, workspace } = useApp()
@@ -551,28 +567,53 @@ function LiveInsightsPage() {
   const { privacyMode, workspace } = useApp()
   const reduce = useReducedMotion()
   const [sharePayload, setSharePayload] = useState<SharePayload | null>(null)
-  const [period] = useState(() => {
-    const to = new Date()
-    const from = new Date(
-      Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1),
+  const [period, setPeriodState] = useState<InsightsPeriodValue>(() =>
+    insightsPeriodValueForMode('this-month', '', '', ''),
+  )
+  const updatePeriod = (
+    change: Partial<DashboardPeriodValue> & { mode: DashboardPeriodValue['mode'] },
+  ) => {
+    if (!isInsightsPeriodMode(change.mode)) return
+    setPeriodState(
+      insightsPeriodValueForMode(
+        change.mode,
+        change.month ?? period.month,
+        change.from ?? period.from,
+        change.to ?? period.to,
+      ),
     )
-    return { from: from.toISOString(), to: to.toISOString() }
-  })
+  }
+  const clearPeriod = () =>
+    setPeriodState(insightsPeriodValueForMode('this-month', '', '', ''))
+  const range = insightsReportRange(period)
   const reportQuery = useQuery({
-    queryKey: ['insights', workspace.id, period.from, period.to],
+    queryKey: ['insights', workspace.id, range.from, range.to],
     queryFn: () =>
       api.get<ReportView>(
-        `/workspaces/${workspace.id}/reports/summary?from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`,
+        `/workspaces/${workspace.id}/reports/summary?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
       ),
     retry: 1,
   })
+  const previousRange = previousPeriodRange(range.from, range.to)
+  const previousQuery = useQuery({
+    queryKey: ['insights', workspace.id, 'previous', previousRange?.from, previousRange?.to],
+    queryFn: () => {
+      if (!previousRange) return Promise.resolve(null)
+      return api.get<ReportView | null>(
+        `/workspaces/${workspace.id}/reports/summary?from=${encodeURIComponent(previousRange.from)}&to=${encodeURIComponent(previousRange.to)}`,
+      )
+    },
+    enabled: previousRange !== null,
+    retry: 1,
+  })
+  const previousReport = previousQuery.data ?? null
 
   if (reportQuery.isLoading) {
     return (
       <PageFrame className="insights-page analytics-page">
         <PageHeader
           title="Insights"
-          description="Loading this month's factual summary."
+          description="Loading the factual summary for the selected period."
         />
         <DataSkeleton />
       </PageFrame>
@@ -583,7 +624,13 @@ function LiveInsightsPage() {
       <PageFrame className="insights-page analytics-page">
         <PageHeader
           title="Insights"
-          description="A factual summary of activity in the current month."
+          description="A factual summary of activity in the selected period."
+        />
+        <PeriodSelector
+          value={period}
+          onChange={updatePeriod}
+          onClear={clearPeriod}
+          modes={INSIGHTS_PERIOD_MODES}
         />
         <ErrorState
           message="The live insight report could not be loaded."
@@ -611,17 +658,39 @@ function LiveInsightsPage() {
   const categories = Object.entries(report.byCategory ?? {}).sort(
     (left, right) => right[1] - left[1],
   )
+  const metricKinds: MetricKind[] = ['income', 'spending', 'net']
+  const currentTotals: Record<MetricKind, number> = {
+    income: report.incomeMinor,
+    spending: report.spendingMinor,
+    net: report.netMinor,
+  }
+  const previousTotals: Record<MetricKind, number> = {
+    income: previousReport?.incomeMinor ?? 0,
+    spending: previousReport?.spendingMinor ?? 0,
+    net: previousReport?.netMinor ?? 0,
+  }
+  const comparisons: MetricComparison[] = previousReport
+    ? metricKinds
+        .map((kind) =>
+          describeMetricChange(kind, currentTotals[kind], previousTotals[kind]),
+        )
+        .filter((item): item is MetricComparison => item !== null)
+    : []
   const canShareReport =
     workspace.permissions?.includes('export_data') === true
+  const isMonthPeriod =
+    period.mode === 'this-month' ||
+    period.mode === 'last-month' ||
+    period.mode === 'custom-month'
   const reportPeriod = new Date(period.from)
 
   return (
     <PageFrame className="insights-page analytics-page">
       <PageHeader
         title="Insights"
-        description="A factual summary of activity in the current month."
+        description="A factual summary of activity in the selected period."
         actions={
-          canShareReport ? (
+          canShareReport && isMonthPeriod ? (
             <Button
               variant="secondary"
               onClick={() =>
@@ -665,10 +734,16 @@ function LiveInsightsPage() {
             </Button>
           ) : undefined
         }
+        />
+      <PeriodSelector
+        value={period}
+        onChange={updatePeriod}
+        onClear={clearPeriod}
+        modes={INSIGHTS_PERIOD_MODES}
       />
       <div className="insight-hero">
         <div>
-          <span>Net cash flow this month</span>
+          <span>Net cash flow for the selected period</span>
           <MoneyText
             money={{ amountMinor: report.netMinor, currency }}
           />
@@ -682,6 +757,11 @@ function LiveInsightsPage() {
               ? 'Income is at or above spending'
               : 'Spending is above income'}
           </Badge>
+          {comparisons.map((comparison) => (
+            <Badge key={comparison.label} tone={comparison.tone}>
+              {comparison.label}
+            </Badge>
+          ))}
         </div>
         <figure
           className="insight-bars"
@@ -697,7 +777,7 @@ function LiveInsightsPage() {
               Spending
             </span>
             <span className="visually-hidden">
-              Relative comparison of current-month income and spending.
+              Relative comparison of selected-period income and spending.
             </span>
           </figcaption>
           {[
@@ -733,7 +813,14 @@ function LiveInsightsPage() {
                   <ListRow
                     leading={<ReceiptText aria-hidden="true" />}
                     title={friendlyLabel(category)}
-                    subtitle="Current report period"
+                    subtitle={
+                      (previousReport
+                        ? describeCategoryChange(
+                            amountMinor,
+                            previousReport.byCategory?.[category] ?? 0,
+                          )
+                        : null) ?? 'Current report period'
+                    }
                     trailing={
                       <MoneyText money={{ amountMinor, currency }} />
                     }

@@ -4,11 +4,11 @@ const config: CapacitorConfig = {
   appId: 'io.github.d4rkninja.ledgerly',
   appName: 'Ledgerly',
   webDir: 'dist',
-  backgroundColor: '#f1f5f2',
+  backgroundColor: '#f3f5f1',
   loggingBehavior: 'debug',
   android: {
     path: '../applications/android',
-    backgroundColor: '#f1f5f2',
+    backgroundColor: '#f3f5f1',
     allowMixedContent: true,
     captureInput: false,
     webContentsDebuggingEnabled: true,
@@ -27,7 +27,7 @@ const config: CapacitorConfig = {
     SplashScreen: {
       launchAutoHide: false,
       launchFadeOutDuration: 180,
-      backgroundColor: '#f1f5f2',
+      backgroundColor: '#f3f5f1',
       androidScaleType: 'CENTER_INSIDE',
       showSpinner: false,
     },

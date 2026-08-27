@@ -12,6 +12,16 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BottomSheet } from '@/components/beui/bottom-sheet'
 
+const motionMocks = vi.hoisted(() => ({ reduced: false }))
+
+vi.mock('motion/react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('motion/react')>()
+  return {
+    ...actual,
+    useReducedMotion: () => motionMocks.reduced,
+  }
+})
+
 function SwitchingSheets() {
   const [accountOpen, setAccountOpen] = useState(true)
   const [homeOpen, setHomeOpen] = useState(false)
@@ -60,6 +70,7 @@ function FocusSheet() {
 
 describe('BottomSheet scroll locking', () => {
   beforeEach(() => {
+    motionMocks.reduced = false
     vi.stubGlobal(
       'matchMedia',
       vi.fn((query: string) => ({
@@ -103,8 +114,12 @@ describe('BottomSheet scroll locking', () => {
     const close = within(sheet).getByRole('button', {
       name: 'Close bottom sheet',
     })
+    const backdrop = screen
+      .getAllByRole('button', { name: 'Close bottom sheet' })
+      .find((button) => !sheet.contains(button))
     const first = within(sheet).getByRole('button', { name: 'First action' })
     const last = within(sheet).getByRole('button', { name: 'Last action' })
+    expect(backdrop).toHaveAttribute('tabindex', '-1')
     await waitFor(() => expect(first).toHaveFocus())
     expect((opener.closest('body > div') as HTMLElement).inert).toBe(true)
 
@@ -142,5 +157,21 @@ describe('BottomSheet scroll locking', () => {
       expect(document.body.style.right).toBe('')
       expect(document.body.style.overflow).toBe('')
     })
+  })
+
+  it('removes the spatial drag affordance under reduced motion', async () => {
+    const user = userEvent.setup()
+    motionMocks.reduced = true
+    render(
+      <MotionConfig reducedMotion="always">
+        <FocusSheet />
+      </MotionConfig>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open focus sheet' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Focus sheet' })
+
+    expect(sheet.querySelector('.cursor-default')).toBeInTheDocument()
+    expect(sheet.querySelector('.cursor-grab')).not.toBeInTheDocument()
   })
 })

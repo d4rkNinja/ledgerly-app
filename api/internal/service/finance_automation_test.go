@@ -216,11 +216,11 @@ func (s *automationTestStore) Aggregate(_ context.Context, collection string, pi
 					amount := bsonInt64(document, "amount_minor")
 					totals[txType] += amount
 				}
-			output := destination.(*[]transactionTypeTotal)
-			for txType, total := range totals {
-				*output = append(*output, transactionTypeTotal{Type: txType, Total: total})
-			}
-			return nil
+				output := destination.(*[]transactionTypeTotal)
+				for txType, total := range totals {
+					*output = append(*output, transactionTypeTotal{Type: txType, Total: total})
+				}
+				return nil
 			}
 			if _, hasCount := groupSpec["count"]; hasCount {
 				documents := s.collectionDocuments(collection)
@@ -1037,9 +1037,9 @@ func TestRuleCRUDValidatesConditionsAndActions(t *testing.T) {
 	}
 	disabled := false
 	if _, err := finance.UpdateAutomationRule(ctx, "workspace-a", "user-a", rule.ID, AutomationRuleInput{
-		Name:    "Uber rides",
-		Enabled: &disabled,
-		Actions: rule.Actions,
+		Name:       "Uber rides",
+		Enabled:    &disabled,
+		Actions:    rule.Actions,
 		Conditions: rule.Conditions,
 	}); err != nil {
 		t.Fatalf("update failed: %v", err)
@@ -1335,5 +1335,3 @@ func TestCompleteReconciliationRequiresAcknowledgementAndStaysImmutable(t *testi
 		t.Fatalf("reconciliations stored = %d", len(store.reconciliations))
 	}
 }
-
-

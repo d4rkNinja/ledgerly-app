@@ -16,15 +16,15 @@ const (
 	RuleConditionCategory    = "category"
 	RuleConditionImported    = "imported"
 
-	RuleOperatorEquals       = "equals"
-	RuleOperatorNotEquals    = "not_equals"
-	RuleOperatorContains     = "contains"
-	RuleOperatorIn           = "in"
-	RuleOperatorGreaterThan  = "greater_than"
-	RuleOperatorLessThan     = "less_than"
-	RuleOperatorBetween      = "between"
-	RuleOperatorTrue         = "is_true"
-	RuleOperatorFalse        = "is_false"
+	RuleOperatorEquals      = "equals"
+	RuleOperatorNotEquals   = "not_equals"
+	RuleOperatorContains    = "contains"
+	RuleOperatorIn          = "in"
+	RuleOperatorGreaterThan = "greater_than"
+	RuleOperatorLessThan    = "less_than"
+	RuleOperatorBetween     = "between"
+	RuleOperatorTrue        = "is_true"
+	RuleOperatorFalse       = "is_false"
 )
 
 // Automation rule action types.
@@ -56,12 +56,12 @@ var ruleActionTypes = map[string]struct{}{
 }
 
 type RuleCondition struct {
-	Field     string   `bson:"field" json:"field"`
-	Operator  string   `bson:"operator" json:"operator"`
-	Value     string   `bson:"value,omitempty" json:"value,omitempty"`
-	Values    []string `bson:"values,omitempty" json:"values,omitempty"`
-	MinMinor  *int64   `bson:"min_minor,omitempty" json:"minMinor,omitempty"`
-	MaxMinor  *int64   `bson:"max_minor,omitempty" json:"maxMinor,omitempty"`
+	Field    string   `bson:"field" json:"field"`
+	Operator string   `bson:"operator" json:"operator"`
+	Value    string   `bson:"value,omitempty" json:"value,omitempty"`
+	Values   []string `bson:"values,omitempty" json:"values,omitempty"`
+	MinMinor *int64   `bson:"min_minor,omitempty" json:"minMinor,omitempty"`
+	MaxMinor *int64   `bson:"max_minor,omitempty" json:"maxMinor,omitempty"`
 }
 
 type RuleAction struct {
@@ -72,9 +72,9 @@ type RuleAction struct {
 // AppliedRuleChange describes one field mutation an automation rule made to a
 // transaction. It is stored on the transaction as explainable provenance.
 type AppliedRuleChange struct {
-	Field   string `bson:"field" json:"field"`
-	From    string `bson:"from,omitempty" json:"from,omitempty"`
-	To      string `bson:"to,omitempty" json:"to,omitempty"`
+	Field string `bson:"field" json:"field"`
+	From  string `bson:"from,omitempty" json:"from,omitempty"`
+	To    string `bson:"to,omitempty" json:"to,omitempty"`
 }
 
 type AppliedRuleRecord struct {

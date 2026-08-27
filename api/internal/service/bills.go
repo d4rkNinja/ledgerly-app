@@ -116,13 +116,13 @@ func (s *FinanceService) UpdateBill(ctx context.Context, workspaceID, actorID, b
 		"_id":          billID,
 		"workspace_id": workspaceID,
 	}, repository.Filter{"$set": repository.Filter{
-		"title":       normalized.Name,
+		"title":        normalized.Name,
 		"amount_minor": normalized.AmountMinor,
-		"currency":    normalized.Currency,
-		"frequency":   normalized.Frequency,
-		"next_due_at": normalized.DueDate,
-		"autopay":     normalized.Autopay,
-		"updated_at":  now,
+		"currency":     normalized.Currency,
+		"frequency":    normalized.Frequency,
+		"next_due_at":  normalized.DueDate,
+		"autopay":      normalized.Autopay,
+		"updated_at":   now,
 	}}, &updated); err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			return nil, ErrNotFound
