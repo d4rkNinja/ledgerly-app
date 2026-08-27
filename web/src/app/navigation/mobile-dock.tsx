@@ -19,28 +19,18 @@ type MobileNavigationItem = AppNavigationItem & {
 function DockItemContent({
   item,
   active,
-  reduceMotion,
 }: {
   item: MobileNavigationItem
   active: boolean
-  reduceMotion: boolean
 }) {
   return (
-    <motion.span
+    <span
       className="dock-link-motion"
-      animate={
-        reduceMotion
-          ? undefined
-          : {
-              y: active ? -1 : 0,
-              scale: active ? 1.025 : 1,
-            }
-      }
-      transition={reduceMotion ? { duration: 0 } : SPRING_PRESS}
+      data-active={active ? 'true' : 'false'}
     >
       <item.icon aria-hidden="true" />
       <span>{item.dock.label ?? item.label}</span>
-    </motion.span>
+    </span>
   )
 }
 
@@ -137,7 +127,6 @@ export function MobileNavigationDock({
                       <DockItemContent
                         item={item}
                         active={active}
-                        reduceMotion={reduceMotion}
                       />
                     </motion.button>
                   ) : (
@@ -155,7 +144,6 @@ export function MobileNavigationDock({
                       <DockItemContent
                         item={item}
                         active={active}
-                        reduceMotion={reduceMotion}
                       />
                     </MotionLink>
                   )}

@@ -1,8 +1,11 @@
 import { AlertTriangle, Check, Copy, Edit3, Share2, Trash2 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ActionSwapIcon } from '@/components/motion/action-swap'
 import { ShareSheet } from '@/components/share-sheet'
 import { Button, Dialog } from '@/components/ui'
 import { ApiError, api } from '@/lib/api-client'
+import { TRANSITION_FADE } from '@/lib/app-motion'
 import { buildSafeTextSharePayload, type SharePayload } from '@/lib/share'
 import { copyTextToClipboard } from '@/lib/clipboard'
 
@@ -68,6 +71,10 @@ export function RecordActionDrawer({
   const [sharePayload, setSharePayload] = useState<SharePayload | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [copiedDetail, setCopiedDetail] = useState<string | null>(null)
+  const reduceMotion = Boolean(useReducedMotion())
+  const keepButtonRef = useRef<HTMLButtonElement>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null)
+  const wasConfirmingDeleteRef = useRef(false)
 
   useEffect(() => {
     if (open) return
@@ -76,6 +83,15 @@ export function RecordActionDrawer({
     setError(null)
     setCopiedDetail(null)
   }, [open])
+
+  useEffect(() => {
+    if (confirmingDelete) {
+      keepButtonRef.current?.focus()
+    } else if (wasConfirmingDeleteRef.current) {
+      deleteTriggerRef.current?.focus()
+    }
+    wasConfirmingDeleteRef.current = confirmingDelete
+  }, [confirmingDelete])
 
   const share = async () => {
     if (busy || !canShare) return
@@ -127,39 +143,68 @@ export function RecordActionDrawer({
       >
         <div className="record-action-panel">
           <dl className="record-detail-list">
-            {details.map((detail) => (
-              <div key={detail.label}>
-                <dt>{detail.label}</dt>
-                <dd>
-                  <span>{detail.value}</span>
-                  {detail.copyable ? (
-                    <button
-                      type="button"
-                      className="record-detail-copy"
-                      aria-label={`Copy ${detail.label.toLowerCase()}`}
-                      title={`Copy ${detail.label.toLowerCase()}`}
-                      onClick={() => {
-                        void copyTextToClipboard(detail.value).then((copied) => {
-                          if (copied) {
-                            setCopiedDetail(detail.label)
-                            setError(null)
-                          } else {
-                            setError(`Unable to copy ${detail.label.toLowerCase()}. Select it and copy manually.`)
-                          }
-                        })
-                      }}
-                    >
-                      {copiedDetail === detail.label ? (
-                        <Check aria-hidden="true" />
-                      ) : (
-                        <Copy aria-hidden="true" />
-                      )}
-                    </button>
-                  ) : null}
-                </dd>
-              </div>
-            ))}
+            {details.map((detail) => {
+              const copied = copiedDetail === detail.label
+              return (
+                <div key={detail.label}>
+                  <dt>{detail.label}</dt>
+                  <dd>
+                    <span>{detail.value}</span>
+                    {detail.copyable ? (
+                      <button
+                        type="button"
+                        className="record-detail-copy"
+                        aria-label={
+                          copied
+                            ? `${detail.label} copied`
+                            : `Copy ${detail.label.toLowerCase()}`
+                        }
+                        title={
+                          copied
+                            ? `${detail.label} copied`
+                            : `Copy ${detail.label.toLowerCase()}`
+                        }
+                        onClick={() => {
+                          void copyTextToClipboard(detail.value).then(
+                            (didCopy) => {
+                              if (didCopy) {
+                                setCopiedDetail(detail.label)
+                                setError(null)
+                              } else {
+                                setError(
+                                  `Unable to copy ${detail.label.toLowerCase()}. Select it and copy manually.`,
+                                )
+                              }
+                            },
+                          )
+                        }}
+                      >
+                        <ActionSwapIcon
+                          value={copied ? 'copied' : 'copy'}
+                          animation="blur"
+                        >
+                          {copied ? (
+                            <Check aria-hidden="true" />
+                          ) : (
+                            <Copy aria-hidden="true" />
+                          )}
+                        </ActionSwapIcon>
+                      </button>
+                    ) : null}
+                  </dd>
+                </div>
+              )
+            })}
           </dl>
+
+          <span
+            className="visually-hidden"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {copiedDetail ? `${copiedDetail} copied.` : ''}
+          </span>
 
           {actionContent ? (
             <div className="record-action-extra">
@@ -174,76 +219,112 @@ export function RecordActionDrawer({
             </div>
           ) : null}
 
-          {confirmingDelete ? (
-            <div className="record-delete-confirmation" role="alert">
-              <div>
-                <strong>{deleteLabel} this record?</strong>
-                <p>{deleteDescription}</p>
-              </div>
-              <div className="record-delete-buttons">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={busy === 'delete'}
-                  onClick={() => setConfirmingDelete(false)}
-                >
-                  Keep it
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  loading={busy === 'delete'}
-                  onClick={() => void remove()}
-                >
-                  <Trash2 aria-hidden="true" />
-                  {deleteLabel}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="record-action-buttons">
-              {onEdit ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={busy !== null}
-                  onClick={() => {
-                    onClose()
-                    onEdit()
-                  }}
-                >
-                  <Edit3 aria-hidden="true" />
-                  {editLabel}
-                </Button>
-              ) : null}
-              {canShare ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  loading={busy === 'share'}
-                  disabled={busy === 'delete'}
-                  onClick={() => void share()}
-                >
-                  <Share2 aria-hidden="true" />
-                  Share
-                </Button>
-              ) : null}
-              {canDelete && onDelete ? (
-                <Button
-                  type="button"
-                  variant="danger"
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setError(null)
-                    setConfirmingDelete(true)
-                  }}
-                >
-                  <Trash2 aria-hidden="true" />
-                  {deleteLabel}
-                </Button>
-              ) : null}
-            </div>
-          )}
+          <AnimatePresence initial={false} mode="popLayout">
+            {confirmingDelete ? (
+              <motion.div
+                key="delete-confirmation"
+                className="record-delete-confirmation"
+                role="alert"
+                initial={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, transform: 'translateY(4px)' }
+                }
+                animate={{ opacity: 1, transform: 'translateY(0)' }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, transform: 'translateY(-3px)' }
+                }
+                transition={TRANSITION_FADE}
+              >
+                <div>
+                  <strong>{deleteLabel} this record?</strong>
+                  <p>{deleteDescription}</p>
+                </div>
+                <div className="record-delete-buttons">
+                  <Button
+                    ref={keepButtonRef}
+                    type="button"
+                    variant="secondary"
+                    disabled={busy === 'delete'}
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    Keep it
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    loading={busy === 'delete'}
+                    aria-label={`Confirm ${deleteLabel.toLowerCase()}`}
+                    onClick={() => void remove()}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    {deleteLabel}
+                  </Button>
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="record-actions"
+                className="record-action-buttons"
+                initial={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, transform: 'translateY(4px)' }
+                }
+                animate={{ opacity: 1, transform: 'translateY(0)' }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, transform: 'translateY(-3px)' }
+                }
+                transition={TRANSITION_FADE}
+              >
+                {onEdit ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      onClose()
+                      onEdit()
+                    }}
+                  >
+                    <Edit3 aria-hidden="true" />
+                    {editLabel}
+                  </Button>
+                ) : null}
+                {canShare ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    loading={busy === 'share'}
+                    disabled={busy === 'delete'}
+                    onClick={() => void share()}
+                  >
+                    <Share2 aria-hidden="true" />
+                    Share
+                  </Button>
+                ) : null}
+                {canDelete && onDelete ? (
+                  <Button
+                    ref={deleteTriggerRef}
+                    type="button"
+                    variant="danger"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setError(null)
+                      setConfirmingDelete(true)
+                    }}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    {deleteLabel}
+                  </Button>
+                ) : null}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </Dialog>
       <ShareSheet

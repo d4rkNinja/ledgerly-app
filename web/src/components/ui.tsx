@@ -509,53 +509,18 @@ export function PageHeader({
   description?: string
   actions?: ReactNode
 }) {
-  const reduce = useReducedMotion()
   return (
-    <motion.header
-      className="page-header"
-      data-ui="page-header"
-      initial={false}
-    >
-      <motion.div
-        className="page-header-copy"
-        initial={
-          reduce
-            ? false
-            : { opacity: 0, y: MOTION_DISTANCE.content, filter: 'blur(4px)' }
-        }
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        transition={reduce ? { duration: 0 } : TRANSITION_CONTENT}
-      >
+    <header className="page-header" data-ui="page-header">
+      <div className="page-header-copy">
         {eyebrow ? <span className="page-eyebrow">{eyebrow}</span> : null}
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
-      </motion.div>
+      </div>
       {actions ? (
-        <motion.div
-          className="page-actions"
-          initial={reduce ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={
-            reduce
-              ? { duration: 0 }
-              : { ...TRANSITION_CONTENT, delay: 0.06 }
-          }
-        >
-          {actions}
-        </motion.div>
+        <div className="page-actions">{actions}</div>
       ) : null}
-      <motion.span
-        className="page-header-accent"
-        aria-hidden="true"
-        initial={reduce ? false : { scaleX: 0 }}
-        animate={{ scaleX: 1 }}
-        transition={
-          reduce
-            ? { duration: 0 }
-            : { duration: 0.42, delay: 0.08, ease: [0.16, 1, 0.3, 1] }
-        }
-      />
-    </motion.header>
+      <span className="page-header-accent" aria-hidden="true" />
+    </header>
   )
 }
 
@@ -859,19 +824,10 @@ export function Section({
   className,
   ...props
 }: Omit<HTMLMotionProps<'section'>, 'ref'>) {
-  const reduce = useReducedMotion()
   return (
     <motion.section
       className={cn('surface-section', className)}
       data-surface="section"
-      initial={
-        reduce
-          ? false
-          : { opacity: 0, y: MOTION_DISTANCE.content }
-      }
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.12 }}
-      transition={reduce ? { duration: 0 } : TRANSITION_CONTENT}
       {...props}
     />
   )

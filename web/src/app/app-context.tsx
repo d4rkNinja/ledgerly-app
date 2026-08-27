@@ -169,7 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .querySelector<HTMLMetaElement>('meta[name="theme-color"]')
         ?.setAttribute(
           'content',
-          nextResolved === 'dark' ? '#0b120e' : '#f1f5f2',
+          nextResolved === 'dark' ? '#0c1410' : '#f3f5f1',
         )
     }
     updateTheme()

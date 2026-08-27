@@ -4,6 +4,7 @@ import { useApp } from '@/app/app-state'
 import { CurrencySelect } from '@/components/currency-select'
 import { DatePicker } from '@/components/date-picker'
 import { Checkbox } from '@/components/beui/checkbox'
+import { ActionSwapIcon } from '@/components/motion/action-swap'
 import {
   Select,
   SelectContent,
@@ -459,36 +460,59 @@ export function TransactionEditDialog({
     <Dialog open={open} title="Edit transaction" description="Update the entry while keeping its account and audit history intact." onClose={flow.busy ? () => undefined : onClose}>
       <form className="dialog-form finance-write-form" onSubmit={submit} aria-busy={flow.busy || undefined}>
         {transaction?.transactionId ? (
-          <Field
-            label="Transaction ID"
-            hint={idCopyStatus || 'The transaction ID cannot be changed after creation.'}
-          >
-            <div className="transaction-id-readonly-control">
-              <input value={transaction.transactionId} readOnly />
-              <Button
-                type="button"
-                variant="secondary"
-                aria-label="Copy transaction ID"
-                onClick={() => {
-                  void copyTextToClipboard(transaction.transactionId ?? '').then(
-                    (copied) =>
-                      setIdCopyStatus(
-                        copied
-                          ? 'Transaction ID copied.'
-                          : 'Copy unavailable. Select the ID and copy it manually.',
-                      ),
-                  )
-                }}
-              >
-                {idCopyStatus === 'Transaction ID copied.' ? (
-                  <Check aria-hidden="true" />
-                ) : (
-                  <Copy aria-hidden="true" />
-                )}
-                Copy
-              </Button>
-            </div>
-          </Field>
+          <>
+            <Field
+              label="Transaction ID"
+              hint={idCopyStatus || 'The transaction ID cannot be changed after creation.'}
+            >
+              <div className="transaction-id-readonly-control">
+                <input value={transaction.transactionId} readOnly />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  aria-label={
+                    idCopyStatus === 'Transaction ID copied.'
+                      ? 'Transaction ID copied'
+                      : 'Copy transaction ID'
+                  }
+                  onClick={() => {
+                    void copyTextToClipboard(transaction.transactionId ?? '').then(
+                      (copied) =>
+                        setIdCopyStatus(
+                          copied
+                            ? 'Transaction ID copied.'
+                            : 'Copy unavailable. Select the ID and copy it manually.',
+                        ),
+                    )
+                  }}
+                >
+                  <ActionSwapIcon
+                    value={
+                      idCopyStatus === 'Transaction ID copied.'
+                        ? 'copied'
+                        : 'copy'
+                    }
+                    animation="blur"
+                  >
+                    {idCopyStatus === 'Transaction ID copied.' ? (
+                      <Check aria-hidden="true" />
+                    ) : (
+                      <Copy aria-hidden="true" />
+                    )}
+                  </ActionSwapIcon>
+                  Copy
+                </Button>
+              </div>
+            </Field>
+            <span
+              className="visually-hidden"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {idCopyStatus}
+            </span>
+          </>
         ) : null}
         <Field label="Description" error={errors.merchant}><input autoFocus maxLength={200} value={values.merchant} onChange={(event) => { clearFieldError(setErrors, 'merchant'); setValues((current) => ({ ...current, merchant: event.target.value })) }} /></Field>
         <div className="two-fields">

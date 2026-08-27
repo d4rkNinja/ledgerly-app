@@ -5,8 +5,8 @@ import { animate, motion, MotionConfig, useReducedMotion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-// Heavy, deliberate thumb — high mass keeps the travel weighty without wobble.
-const THUMB_SPRING = { type: "spring", stiffness: 800, damping: 80, mass: 4 } as const;
+// Crisp and interruptible: state changes should land without decorative bounce.
+const THUMB_SPRING = { type: "spring", duration: 0.22, bounce: 0 } as const;
 
 export interface SwitchProps {
   checked: boolean;
@@ -38,7 +38,7 @@ export function Switch({
       animate(
         thumbRef.current,
         { x: [0, -2, 2, -1, 0] },
-        { delay: 0.2, duration: 0.6 },
+        { delay: 0.12, duration: 0.24 },
       );
     }
   }, [disabled, isPressed, reduce]);
@@ -74,7 +74,7 @@ export function Switch({
           <motion.div
             ref={thumbRef}
             layout
-            animate={{ scale: squish ? 0.9 : 1 }}
+            animate={{ scale: squish ? 0.96 : 1 }}
             className="pointer-events-none block h-5 w-5 rounded-full bg-background shadow-md"
           >
             {/* Stretch toward the destination while active. */}

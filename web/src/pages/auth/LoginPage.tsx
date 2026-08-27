@@ -108,10 +108,9 @@ export function LoginPage() {
   })
 
   return (
-    <motion.main
+    <main
       className="auth-layout sign-in-layout"
       aria-labelledby="login-title"
-      {...entrance(reducedMotion)}
     >
       <motion.section
         className="auth-card"
@@ -221,6 +220,6 @@ export function LoginPage() {
           </p>
         </div>
       </motion.aside>
-    </motion.main>
+    </main>
   )
 }

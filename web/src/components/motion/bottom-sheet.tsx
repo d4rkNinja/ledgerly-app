@@ -10,14 +10,15 @@ import {
 } from "motion/react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { EASE_DRAWER } from "@/lib/ease";
+import { EASE_DRAWER, EASE_OUT } from "@/lib/ease";
 import { TOUCH_GESTURE_CONTENT_CLASS } from "@/lib/touch";
 import { cn } from "@/lib/utils";
 
-// Vaul-style glide: a long, fully-damped tween reads smoother than a spring on
-// open — no settle/overshoot, just one clean decel. Same curve drives the
-// backdrop fade so the surface and scrim move as one.
-const DRAWER = { duration: 0.5, ease: EASE_DRAWER } as const;
+const SHEET_ENTER = { duration: 0.28, ease: EASE_DRAWER } as const;
+const SHEET_EXIT = { duration: 0.22, ease: EASE_OUT } as const;
+const BACKDROP_ENTER = { duration: 0.14, ease: EASE_OUT } as const;
+const BACKDROP_EXIT = { duration: 0.12, ease: EASE_OUT } as const;
+const REDUCED_FADE = { duration: 0.14, ease: EASE_OUT } as const;
 
 export interface BottomSheetProps {
   open: boolean;
@@ -149,10 +150,10 @@ export function BottomSheet({
           <motion.button
             type="button"
             aria-label="Close bottom sheet"
+            tabIndex={-1}
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={DRAWER}
+            animate={{ opacity: 1, transition: BACKDROP_ENTER }}
+            exit={{ opacity: 0, transition: BACKDROP_EXIT }}
             onClick={() => onOpenChange(false)}
             // A dim scrim with a light blur. backdrop-blur is GPU-expensive and
             // re-rasterizes every frame the sheet drags over it; a small radius
@@ -161,17 +162,24 @@ export function BottomSheet({
           />
           <motion.div
             ref={sheetRef}
-            drag="y"
+            drag={reduce ? false : "y"}
             dragControls={dragControls}
             dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.02, bottom: 0.4 }}
             dragMomentum={false}
-            onDragEnd={onDragEnd}
+            onDragEnd={reduce ? undefined : onDragEnd}
             initial={reduce ? { y: 0, opacity: 0 } : { y: "100%" }}
-            animate={reduce ? { y: 0, opacity: 1 } : { y: 0 }}
-            exit={reduce ? { y: 0, opacity: 0 } : { y: "100%" }}
-            transition={reduce ? { duration: 0.18, ease: EASE_DRAWER } : DRAWER}
+            animate={
+              reduce
+                ? { y: 0, opacity: 1, transition: REDUCED_FADE }
+                : { y: 0, transition: SHEET_ENTER }
+            }
+            exit={
+              reduce
+                ? { y: 0, opacity: 0, transition: REDUCED_FADE }
+                : { y: "100%", transition: SHEET_EXIT }
+            }
             onAnimationComplete={() => {
               if (sheetRef.current)
                 heightRef.current = sheetRef.current.offsetHeight;
@@ -191,11 +199,16 @@ export function BottomSheet({
             <div className="flex flex-col items-center px-4 pb-2 pt-3">
               {/* Drag only the pill so the title and description stay selectable. */}
               <div
-                onPointerDown={(event) => dragControls.start(event)}
+                onPointerDown={(event) => {
+                  if (!reduce) dragControls.start(event);
+                }}
                 // A slow pull must not hand the gesture to iOS's callout,
                 // which would leave the sheet frozen mid-drag.
                 className={cn(
-                  "flex cursor-grab touch-none items-center justify-center py-1 active:cursor-grabbing",
+                  "flex touch-none items-center justify-center py-1",
+                  reduce
+                    ? "cursor-default"
+                    : "cursor-grab active:cursor-grabbing",
                   TOUCH_GESTURE_CONTENT_CLASS,
                 )}
               >

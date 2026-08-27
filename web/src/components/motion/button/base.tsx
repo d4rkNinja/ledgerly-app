@@ -65,7 +65,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     {
       variant = "primary",
       size = "md",
-      pressScale = 0.93,
+      pressScale = 0.97,
       ripple = false,
       className,
       children,
@@ -134,10 +134,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                     x: "-50%",
                     y: "-50%",
                   }}
-                  initial={{ scale: 0.05, opacity: 0.3 }}
+                  initial={{ scale: 0.18, opacity: 0.22 }}
                   animate={{ scale: 1, opacity: 0 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 1.6, ease: EASE_OUT }}
+                  transition={{ duration: 0.28, ease: EASE_OUT }}
                   onAnimationComplete={() =>
                     setRipples((prev) => prev.filter((x) => x.id !== r.id))
                   }
@@ -157,7 +157,7 @@ export const ButtonLink = forwardRef<HTMLAnchorElement, ButtonLinkProps>(
     {
       variant = "primary",
       size = "md",
-      pressScale = 0.93,
+      pressScale = 0.97,
       className,
       children,
       ...rest

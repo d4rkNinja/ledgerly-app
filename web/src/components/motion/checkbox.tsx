@@ -56,7 +56,7 @@ export function Checkbox({
         aria-describedby={ariaDescribedBy}
         disabled={disabled}
         onClick={() => !disabled && onCheckedChange(!checked)}
-        whileTap={reduce || disabled ? undefined : { scale: 0.92 }}
+        whileTap={reduce || disabled ? undefined : { scale: 0.96 }}
         transition={SPRING_PRESS}
         data-state={
           checked ? "checked" : indeterminate ? "indeterminate" : "unchecked"
@@ -82,12 +82,12 @@ export function Checkbox({
               strokeWidth={3}
               strokeLinecap="round"
               strokeLinejoin="round"
-              initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.5 }}
+              initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.9 }}
               animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1 }}
               exit={
                 reduce
                   ? { opacity: 0 }
-                  : { opacity: 0, scale: 0.5, filter: "blur(4px)" }
+                  : { opacity: 0, scale: 0.9, filter: "blur(2px)" }
               }
               transition={
                 reduce ? { duration: 0 } : { duration: 0.16, ease: EASE_OUT }
@@ -103,7 +103,7 @@ export function Checkbox({
                   reduce
                     ? { duration: 0 }
                     : {
-                        duration: indeterminate ? 0.2 : 0.3,
+                        duration: indeterminate ? 0.18 : 0.22,
                         ease: EASE_OUT,
                         delay: 0.04,
                       }

@@ -8,8 +8,8 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const LIGHT = '#f1f5f2'
-const DARK = '#0b120e'
+const LIGHT = '#f3f5f1'
+const DARK = '#0c1410'
 const BRAND_COLORS = ['#17483A', '#A6B58A', '#20272B']
 const PNG_OPTIONS = {
   adaptiveFiltering: false,
